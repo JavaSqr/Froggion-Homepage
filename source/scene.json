@@ -1,0 +1,5 @@
+{
+  "replays": ["replays/Froggion001.mcpr", "replays/Froggion002.mcpr"],
+  "recorder": "javaSqr",
+  "region": { "min": [-240, 0, 5], "max": [-200, 40, 45] }
+}

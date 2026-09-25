@@ -1,0 +1,21 @@
+{
+  "name": "froggion-homepage",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "data": "node --no-deprecation tools/prepare-skins.js && node --no-deprecation tools/replay-to-timeline.js",
+    "data:suggest-loops": "node --no-deprecation tools/replay-to-timeline.js --suggest",
+    "check": "node --no-deprecation --test \"tools/test/*.test.js\""
+  },
+  "devDependencies": {
+    "jszip": "^3.10.2",
+    "minecraft-data": "^3.117.0",
+    "minecraft-protocol": "^1.68.0",
+    "pngjs": "^7.0.0",
+    "prismarine-chunk": "^1.41.0"
+  }
+}

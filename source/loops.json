@@ -1,0 +1,6 @@
+{
+  "FroggyMiner": { "replay": "Froggion001", "from": 19, "to": 680 },
+  "FroggyFisherman": { "replay": "Froggion001", "from": 74, "to": 694 },
+  "FroggyFarmer": { "replay": "Froggion002", "from": 57, "to": 536 },
+  "FroggySlayer": { "replay": "Froggion001", "from": 24, "to": 670 }
+}

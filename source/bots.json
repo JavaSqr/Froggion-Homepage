@@ -1,0 +1,8 @@
+{
+  "bots": [
+    { "nick": "FroggyMiner", "job": "mine", "slug": "miner", "skin": "skins/FroggyMiner.png", "model": "classic" },
+    { "nick": "FroggyFisherman", "job": "fish", "slug": "fisherman", "skin": "skins/FroggyFisherman.png", "model": "slim" },
+    { "nick": "FroggyFarmer", "job": "farm", "slug": "farmer", "skin": "skins/FroggyFarmer.png", "model": "slim" },
+    { "nick": "FroggySlayer", "job": "attack", "slug": "slayer", "skin": "skins/FroggySlayer.png", "model": "classic" }
+  ]
+}
