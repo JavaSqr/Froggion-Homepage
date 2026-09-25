@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .DS_Store
+# generated from content/*.json by tools/vite-pages.js
+/index.html
+/en/index.html

@@ -1,4 +1,39 @@
 {
+  "lang": "en",
+  "meta": {
+    "title": "Froggion — 24/7 AFK bots for game servers",
+    "description": "Rent AFK bots for Minecraft servers: mob grinding, fishing, auto-mining and auto-farming. Bots run around the clock on our servers and you control them from a web panel. 1 bot for 24 hours free.",
+    "ogImageAlt": "A floating island where Froggion bots mine, fish, farm and fight creepers"
+  },
+  "nav": {
+    "label": "Site sections",
+    "bots": "Bots",
+    "features": "Features",
+    "notifications": "Notifications",
+    "panel": "Panel",
+    "pricing": "Pricing",
+    "partners": "Partners",
+    "faq": "FAQ",
+    "login": "Log in",
+    "menu": "Menu",
+    "language": "Language"
+  },
+  "hero": {
+    "title": "AFK bots that keep working while you rest",
+    "subtitle": "They fight mobs, fish, mine and farm around the clock on our servers. You control them from a web panel on your computer or phone.",
+    "cta": "Try for free",
+    "ctaNote": "1 bot for 24 hours — free",
+    "pricing": "Pricing"
+  },
+  "scene": {
+    "label": "The Froggion bot island",
+    "list": "Bots on the island",
+    "hint": "Hover over a bot to meet it",
+    "download": "Download skin",
+    "more": "Learn more",
+    "close": "Close",
+    "posterAlt": "A floating block island: four bots mine, fish, farm and fight creepers"
+  },
   "bots": {
     "FroggyMiner": {
       "name": "Miner Frog",
@@ -15,6 +50,25 @@
     "FroggySlayer": {
       "name": "Warrior Frog",
       "description": "Guards the island from creepers and never misses. Says the best defense is a well-croak-ordinated offense."
+    }
+  },
+  "jobs": {
+    "title": "What the bots do",
+    "attack": {
+      "title": "Mob grinding",
+      "text": "The bot stands at the farm and hits mobs non-stop while you are busy with other things."
+    },
+    "fish": {
+      "title": "Fishing",
+      "text": "Casts the rod, waits for a bite and reels in. Fish, treasure and experience pile up on their own."
+    },
+    "mine": {
+      "title": "Auto-mining",
+      "text": "Digs tunnels by a profile you set and works around obstacles by itself."
+    },
+    "farm": {
+      "title": "Auto-farming",
+      "text": "Plants and harvests wheat, carrots, potatoes, beetroot and nether wart."
     }
   }
 }
