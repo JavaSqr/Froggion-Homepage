@@ -1,8 +1,12 @@
 // Texture loading and the block atlas. Every texture is its own file under /textures/.
 export const TEXTURE_BASE = '/textures/';
+/* global __BUILD__ */
+const VERSION = typeof __BUILD__ === 'string' ? __BUILD__ : '';
+// Files in public/ keep their names between builds; the version query makes a new build visible at once.
+export const versioned = (url) => (VERSION ? `${url}${url.includes('?') ? '&' : '?'}v=${VERSION}` : url);
 
 export async function loadImage(url) {
-  const res = await fetch(url);
+  const res = await fetch(versioned(url));
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   const blob = await res.blob();
   if ('createImageBitmap' in window) return createImageBitmap(blob);

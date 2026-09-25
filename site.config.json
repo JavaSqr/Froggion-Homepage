@@ -1,6 +1,12 @@
 {
   "siteUrl": "https://froggion.bot",
   "panelUrl": "https://panel.froggion.bot/",
+  "partnersUrl": "https://t.me/froggion_support",
+  "contacts": {
+    "telegram": "https://t.me/froggion_support",
+    "email": "support@froggion.bot",
+    "vk": "https://vk.com/froggion"
+  },
   "languages": [
     {
       "code": "ru",
@@ -15,5 +21,70 @@
   ],
   "scene": {
     "variant": "day"
+  },
+  "pricing": {
+    "currency": "₽",
+    "monthDays": 30,
+    "ladder": [
+      {
+        "from": 1,
+        "to": 1,
+        "price": 119
+      },
+      {
+        "from": 2,
+        "to": 4,
+        "price": 109
+      },
+      {
+        "from": 5,
+        "to": 9,
+        "price": 105
+      },
+      {
+        "from": 10,
+        "to": null,
+        "price": 99
+      }
+    ],
+    "shortTerms": [
+      {
+        "days": 3,
+        "price": 29
+      },
+      {
+        "days": 7,
+        "price": 49
+      },
+      {
+        "days": 14,
+        "price": 79
+      }
+    ],
+    "promoDiscount": 0.15,
+    "loyaltyDiscount": 0.1,
+    "loyaltyFromMonth": 4,
+    "upgrades": [
+      {
+        "id": "privateIp",
+        "price": 169
+      },
+      {
+        "id": "priorityPool",
+        "price": 49
+      }
+    ],
+    "trial": {
+      "bots": 1,
+      "hours": 24
+    },
+    "partners": {
+      "commission": [
+        10,
+        7.5,
+        5
+      ],
+      "payoutMin": 200
+    }
   }
 }

@@ -27,6 +27,32 @@ export const SHOTS = [
   { name: 'en-first-screen', viewport: [1440, 900], url: '/en/' },
   // prefers-reduced-motion: poster only, the card opens from the bot list.
   { name: 'reduced-motion-card', viewport: [1440, 900], url: '/', reducedMotion: true, listCard: 'FroggyFarmer' },
+  // The rest of the page. `scroll`: a selector scrolled to the top, or a script returning scrollY.
+  { name: 'jobs-intro', viewport: [1440, 900], url: '/', scroll: '#jobs-title', offset: -300 },
+  { name: 'jobs-slayer', viewport: [1440, 900], url: '/', scroll: '#bot-slayer' },
+  { name: 'jobs-flight', viewport: [1440, 900], url: '/', scroll: () => { const a = document.querySelector('#bot-slayer'), b = document.querySelector('#bot-fisherman'); return (a.offsetTop + b.offsetTop) / 2 + a.offsetParent.offsetTop; } },
+  { name: 'jobs-fisherman', viewport: [1440, 900], url: '/', scroll: '#bot-fisherman' },
+  { name: 'jobs-miner', viewport: [1440, 900], url: '/', scroll: '#bot-miner' },
+  { name: 'jobs-farmer', viewport: [1440, 900], url: '/', scroll: '#bot-farmer' },
+  { name: 'jobs-mobile-fisherman', viewport: [390, 844], url: '/', mobile: true, scroll: '#bot-fisherman' },
+  { name: 'jobs-reduced-motion', viewport: [1440, 900], url: '/', reducedMotion: true, scroll: '#bot-slayer' },
+  { name: 'features', viewport: [1440, 900], url: '/', scroll: '#features' },
+  { name: 'notifications', viewport: [1440, 900], url: '/', scroll: '#notifications', wait: 3500 },
+  { name: 'panel', viewport: [1440, 900], url: '/', scroll: '#panel' },
+  { name: 'pricing', viewport: [1440, 900], url: '/', scroll: '#pricing', page: async (p) => {
+    await p.fill('input[name="botsNumber"]', '12');
+    await p.check('input[name="promo"]');
+    await p.check('input[value="priorityPool"]');
+  } },
+  { name: 'partners', viewport: [1440, 900], url: '/', scroll: '#partners' },
+  { name: 'faq', viewport: [1440, 900], url: '/', scroll: '#faq', page: (p) => p.click('#faq summary') },
+  { name: 'footer', viewport: [1440, 900], url: '/', scroll: () => document.documentElement.scrollHeight },
+  { name: 'mobile-pricing', viewport: [390, 844], url: '/', mobile: true, scroll: '.calc' },
+  { name: 'mobile-notifications', viewport: [390, 844], url: '/', mobile: true, scroll: '#notifications', wait: 3500 },
+  { name: 'mobile-menu', viewport: [390, 844], url: '/', mobile: true, page: (p) => p.click('.menu-btn') },
+  { name: 'small-phone', viewport: [360, 740], url: '/', mobile: true },
+  { name: 'en-pricing', viewport: [1440, 900], url: '/en/', scroll: '#pricing' },
+  { name: 'legal', viewport: [1440, 900], url: '/offer/', static: true },
 ];
 
 async function waitForServer(url, tries = 50) {
@@ -37,7 +63,8 @@ async function waitForServer(url, tries = 50) {
   throw new Error(`server at ${url} did not start`);
 }
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore', shell: process.platform === 'win32' });
+// Vite's own entry run by this Node: no shell, and kill() stops the server itself.
+const server = spawn(process.execPath, [path.join(ROOT, 'node_modules/vite/bin/vite.js'), 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
 try {
   await waitForServer(`http://localhost:${PORT}/`);
   fs.mkdirSync(outDir, { recursive: true });
@@ -56,8 +83,19 @@ try {
     await page.goto(`http://localhost:${PORT}${withVariant(shot.url)}`, { waitUntil: 'load' });
     // Close-ups of the scene alone: hide the first-screen copy that sits on top of it.
     if (shot.clean) await page.addStyleTag({ content: '.hero__copy, .scene-hint, .site-header { visibility: hidden !important; }' });
-    if (shot.reducedMotion) {
+    const scrollTo = async () => {
+      if (!shot.scroll) return;
+      await page.evaluate(({ sel, fn, offset }) => {
+        const y = fn ? (0, eval)(`(${fn})`)() : document.querySelector(sel).getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({ top: y + offset, behavior: 'instant' });
+      }, { sel: typeof shot.scroll === 'string' ? shot.scroll : null, fn: typeof shot.scroll === 'function' ? shot.scroll.toString() : null, offset: shot.offset ?? 0 });
+      await page.waitForTimeout(150);
+    };
+    if (shot.static || shot.reducedMotion) {
       await page.waitForTimeout(1500);
+      await scrollTo();
+      if (shot.page) await shot.page(page);
+      if (shot.wait) await page.waitForTimeout(shot.wait);
       const live = await page.evaluate(() => !!document.querySelector('[data-scene] canvas'));
       console.log(`[${shot.name}] live scene: ${live}`);
       if (shot.listCard) await page.click(`.bot-list__btn[data-bot="${shot.listCard}"]`);
@@ -71,6 +109,8 @@ try {
     await page.waitForFunction(() => window.__froggion?.scene?.ready, null, { timeout: 60000 });
     // Stills: stop the clock so the chosen moment is what gets captured.
     await page.evaluate(() => window.__froggion.scene.freeze(true));
+    await scrollTo();
+    if (shot.page) await shot.page(page);
     if (shot.run) await page.evaluate(`(${shot.run.toString()})(window.__froggion.scene)`);
     await page.evaluate((settle) => window.__froggion.scene.settle(settle), shot.settle ?? 1.6);
     if (shot.card) await page.evaluate((nick) => window.__froggion.cards.open(nick, { pinned: true, source: 'scene' }), shot.card);
@@ -84,7 +124,7 @@ try {
       console.log(`[${shot.name}] hover opened card: ${open}`);
     }
     await page.evaluate(() => window.__froggion.scene.settle(0));
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(shot.wait ?? 200);
     const file = path.join(outDir, `${shot.name}${NIGHT ? '-night' : ''}.png`);
     await page.screenshot({ path: file });
     console.log('saved', path.relative(ROOT, file));

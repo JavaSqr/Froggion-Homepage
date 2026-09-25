@@ -25,4 +25,18 @@ await (await tile(32, 6, 0.14)).toFile(path.join(out, 'favicon-32.png'));
 await (await tile(180, 36, 0.16)).toFile(path.join(out, 'apple-touch-icon.png'));
 await (await tile(192, 38, 0.16)).toFile(path.join(out, 'icon-192.png'));
 await (await tile(512, 100, 0.16)).toFile(path.join(out, 'icon-512.png'));
+// Panel screenshots for the "Панель" section: WebP in two widths for srcset.
+const PANEL = {
+  status: 'ScreenShot Tool -20260925192911.png',
+  inventory: 'ScreenShot Tool -20260925193032.png',
+  chat: 'ScreenShot Tool -20260925193054.png',
+};
+fs.mkdirSync(path.join(out, 'panel'), { recursive: true });
+for (const [id, file] of Object.entries(PANEL)) {
+  for (const width of [960, 560]) {
+    const dest = path.join(out, 'panel', `${id}-${width}.webp`);
+    await sharp(path.join(ROOT, 'source/brand', file)).resize({ width }).webp({ quality: 72, effort: 6 }).toFile(dest);
+    console.log(path.relative(ROOT, dest), `${(fs.statSync(dest).size / 1024).toFixed(1)} KB`);
+  }
+}
 console.log('brand assets written');

@@ -13,6 +13,8 @@ export function createCards({ bots, root }) {
   const more = card.querySelector('.bot-card__more');
   const closeBtn = card.querySelector('.bot-card__close');
   const listButtons = [...root.querySelectorAll('.bot-list__btn')];
+  // The list only works with scripts, so it is hidden in the HTML until now.
+  root.querySelector('.bot-list')?.removeAttribute('hidden');
   card.tabIndex = -1;
 
   let scene = null;

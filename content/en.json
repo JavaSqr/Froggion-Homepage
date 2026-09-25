@@ -16,7 +16,9 @@
     "faq": "FAQ",
     "login": "Log in",
     "menu": "Menu",
-    "language": "Language"
+    "language": "Language",
+    "docs": "Documents",
+    "skip": "Skip to content"
   },
   "hero": {
     "title": "AFK bots that keep working while you rest",
@@ -32,7 +34,8 @@
     "download": "Download skin",
     "more": "Learn more",
     "close": "Close",
-    "posterAlt": "A floating block island: four bots mine, fish, farm and fight creepers"
+    "posterAlt": "A floating block island: four bots mine, fish, farm and fight creepers",
+    "play": "Show the island in motion"
   },
   "bots": {
     "FroggyMiner": {
@@ -54,21 +57,276 @@
   },
   "jobs": {
     "title": "What the bots do",
+    "hint": "Scroll and the camera flies around the island.",
+    "lead": "Everything you see is a recording of real bots on a server.",
+    "worker": "Working",
     "attack": {
       "title": "Mob grinding",
-      "text": "The bot stands at the farm and hits mobs non-stop while you are busy with other things."
+      "text": "The bot hits mobs at your farm around the clock. Experience and loot pile up while you are busy with other things.",
+      "points": [
+        "Auto-eat and auto-potions keep it going",
+        "Auto-leave when players come close or health runs low",
+        "Death alerts name the players who were nearby"
+      ]
     },
     "fish": {
       "title": "Fishing",
-      "text": "Casts the rod, waits for a bite and reels in. Fish, treasure and experience pile up on their own."
+      "text": "Casts the rod, waits for a bite and reels in. Fish, treasure and experience pile up on their own.",
+      "points": [
+        "Auto-eat, so it never leaves the pond",
+        "Auto-drop for the catch you do not need",
+        "Alerts in Telegram, VK and Discord"
+      ]
     },
     "mine": {
       "title": "Auto-mining",
-      "text": "Digs tunnels by a profile you set and works around obstacles by itself."
+      "text": "Digs tunnels by a profile you set and works around obstacles by itself.",
+      "points": [
+        "Tunnel profile is set in the panel",
+        "Auto-craft and auto-drop keep the inventory free",
+        "Reconnects after kicks and restarts"
+      ]
     },
     "farm": {
       "title": "Auto-farming",
-      "text": "Plants and harvests wheat, carrots, potatoes, beetroot and nether wart."
+      "text": "Plants and harvests wheat, carrots, potatoes, beetroot and nether wart.",
+      "points": [
+        "Works on a schedule",
+        "Sells the harvest at the auction",
+        "Per-bot statistics in the panel"
+      ]
     }
+  },
+  "features": {
+    "title": "Reliability and automation",
+    "lead": "The bot survives restarts, keeps a schedule and leaves when things get dangerous.",
+    "items": [
+      {
+        "id": "afk",
+        "title": "AFK 24/7",
+        "text": "Bots run around the clock on our servers. You can turn your computer off."
+      },
+      {
+        "id": "reconnect",
+        "title": "Auto-reconnect",
+        "text": "Kicked, or the server went down for a restart — the bot logs back in by itself."
+      },
+      {
+        "id": "schedule",
+        "title": "Schedules",
+        "text": "Set working hours and the bot joins and leaves on time."
+      },
+      {
+        "id": "danger",
+        "title": "Auto-leave on danger",
+        "text": "The bot leaves the server when players come close, health runs low or chosen words appear in chat."
+      },
+      {
+        "id": "auction",
+        "title": "Auction",
+        "text": "Buys, sells and resells at the server auction without you."
+      },
+      {
+        "id": "scripts",
+        "title": "Your own functions",
+        "text": "Build a routine from steps and run it on all your bots at once."
+      }
+    ],
+    "moreTitle": "Also",
+    "more": [
+      "Auto-eat and auto-potions",
+      "Auto-login and teleport accepting",
+      "Auto-craft and auto-drop",
+      "Inventory and crafting in the panel",
+      "Server chat and scoreboard",
+      "Statistics",
+      "Shared proxy pool included in the price"
+    ]
+  },
+  "notifications": {
+    "title": "The bot tells you what happened",
+    "lead": "Alerts in Telegram, VK and Discord with message templates you can edit. Reply with commands right from the messenger.",
+    "kinds": [
+      "Join",
+      "Disconnect",
+      "Death with players nearby",
+      "Chat"
+    ],
+    "sender": "Froggion",
+    "now": "now",
+    "messages": [
+      {
+        "kind": "join",
+        "text": "FroggyMiner joined the server"
+      },
+      {
+        "kind": "leave",
+        "text": "FroggyFarmer disconnected: server restart. Reconnecting…"
+      },
+      {
+        "kind": "death",
+        "text": "FroggySlayer died. Players nearby: Kolya2011, Tolik_PvP"
+      },
+      {
+        "kind": "chat",
+        "text": "[Chat] Kolya2011: anyone selling diamonds?"
+      }
+    ],
+    "command": "/status FroggyMiner",
+    "reply": "FroggyMiner online for 6 h 12 min, health 20/20",
+    "you": "You",
+    "input": "Message"
+  },
+  "panel": {
+    "title": "Control panel",
+    "lead": "All bots in one window, on your computer or phone. Sign in with Telegram or VK ID.",
+    "shots": [
+      {
+        "id": "status",
+        "caption": "Bot status, server scoreboard and controls",
+        "alt": "Froggion panel: bot status, health, server scoreboard and effects"
+      },
+      {
+        "id": "inventory",
+        "caption": "Inventory, auto-craft and auto-drop",
+        "alt": "Froggion panel: bot inventory with auto-craft and auto-drop settings"
+      },
+      {
+        "id": "chat",
+        "caption": "Server chat and messages from the bot",
+        "alt": "Froggion panel: game chat and message field"
+      }
+    ],
+    "cta": "Open the panel"
+  },
+  "pricing": {
+    "title": "Pricing",
+    "lead": "Pay for bots, not features: everything is included in each one. The more bots for 30 days, the cheaper each one gets.",
+    "trial": "Free trial: 1 bot for 24 hours",
+    "ladderTitle": "30 days",
+    "bots": {
+      "one": "bot",
+      "few": "bots",
+      "many": "bots"
+    },
+    "andMore": "or more",
+    "perBot": "per bot",
+    "shortTitle": "Short terms",
+    "shortNote": "Bulk prices apply to 30 days only.",
+    "dayWord": {
+      "one": "day",
+      "few": "days",
+      "many": "days"
+    },
+    "discountsTitle": "Discounts",
+    "promo": "Partner promo code — −15%",
+    "loyalty": "From the 4th month of continuous renewal — 10% loyalty discount",
+    "upgradesTitle": "Upgrades",
+    "upgrades": {
+      "privateIp": "Private IP",
+      "priorityPool": "Priority pool"
+    },
+    "included": [
+      "Every bot feature",
+      "Shared proxy pool",
+      "Alerts in Telegram, VK and Discord",
+      "Panel on computer and phone"
+    ],
+    "calc": {
+      "title": "Calculator",
+      "bots": "Bots",
+      "term": "Term",
+      "upgrades": "Upgrades for each bot",
+      "promo": "Partner promo code",
+      "loyalty": "Loyalty discount",
+      "loyaltyHint": "from the 4th month of renewal, 30 days only",
+      "perBot": "Price per bot",
+      "total": "Total",
+      "save": "You save",
+      "cta": "Get started",
+      "noscript": "The calculator needs JavaScript. Prices are in the tables above."
+    }
+  },
+  "partners": {
+    "title": "Partners",
+    "lead": "Bring players and earn a share of what they pay.",
+    "points": [
+      {
+        "title": "By application",
+        "text": "You join the program once your application is approved."
+      },
+      {
+        "title": "Your own promo code",
+        "text": "Your players get 15% off, and you earn a commission on their payments."
+      },
+      {
+        "title": "10 / 7.5 / 5%",
+        "text": "The commission depends on volume."
+      },
+      {
+        "title": "Weekly payouts",
+        "text": "Once a week, from 200 ₽."
+      }
+    ],
+    "cta": "Apply"
+  },
+  "faq": {
+    "title": "Questions and answers",
+    "items": [
+      {
+        "q": "Do I need to keep my computer on?",
+        "a": "No. Bots run on our servers around the clock, and you control them from the web panel on your computer or phone."
+      },
+      {
+        "q": "How do I try it for free?",
+        "a": "Sign in to the panel with Telegram or VK ID and start a trial bot: 1 bot for 24 hours, free."
+      },
+      {
+        "q": "What happens if the bot is kicked or the server restarts?",
+        "a": "The bot reconnects by itself. If you like, it sends an alert to Telegram, VK or Discord."
+      },
+      {
+        "q": "How does the bot stay safe from other players?",
+        "a": "Turn on auto-leave: the bot leaves the server when players come close, health runs low or chosen words appear in chat."
+      },
+      {
+        "q": "Do I need my own proxies?",
+        "a": "No, a shared proxy pool is included in the price. For a dedicated address there is the Private IP upgrade."
+      },
+      {
+        "q": "Can I control several bots at once?",
+        "a": "Yes. Build your own function from steps and run it on all bots at once."
+      },
+      {
+        "q": "What discounts are there?",
+        "a": "Bulk prices apply to 30 days: from 2 bots — 109 ₽, from 5 — 105 ₽, from 10 — 99 ₽ per bot. A partner promo code gives 15% off, and from the 4th month of continuous renewal there is a 10% loyalty discount."
+      },
+      {
+        "q": "How do I become a partner?",
+        "a": "Send an application. Once approved, you get your own promo code and a 10, 7.5 or 5% commission on payments from the players you bring, depending on volume. Payouts are weekly, from 200 ₽."
+      }
+    ]
+  },
+  "cta": {
+    "title": "Your first bot is free",
+    "text": "Start a trial bot for 24 hours and see how it works on your server.",
+    "button": "Try for free"
+  },
+  "footer": {
+    "contacts": "Contacts",
+    "telegram": "Telegram",
+    "vk": "VK",
+    "email": "Email",
+    "docs": "Documents",
+    "offer": "Public offer",
+    "privacy": "Privacy policy",
+    "disclaimer": "Not an official Minecraft service. Not approved by or associated with Mojang or Microsoft",
+    "copyright": "© 2026 Froggion"
+  },
+  "legal": {
+    "offer": "Public offer",
+    "privacy": "Privacy policy",
+    "stub": "This document is being prepared and will appear on this page soon.",
+    "back": "Back to the home page"
   }
 }

@@ -3,7 +3,7 @@ import {
   ColorManagement, LinearSRGBColorSpace, PCFShadowMap, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3,
   WebGLRenderer, Texture, NearestFilter,
 } from 'three';
-import { loadTextures, buildAtlas, loadImage } from './assets.js';
+import { loadTextures, buildAtlas, loadImage, versioned } from './assets.js';
 import { createIslandView, createMaterials, islandTextureNames, FLUID_TEXTURES } from './island.js';
 import { decodeScene } from './timeline.js';
 import { World } from './world.js';
@@ -16,7 +16,7 @@ import { nightLightmap } from './light.js';
 
 ColorManagement.enabled = false;
 
-const fetchJson = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
+const fetchJson = (u) => fetch(versioned(u)).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
 
 function pixelTexture(image) {
   const t = new Texture(image);
@@ -28,7 +28,8 @@ function pixelTexture(image) {
   return t;
 }
 
-export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day' }) {
+// visibleWith: elements that leave the fixed scene layer in sight; the loop pauses when none is on screen.
+export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day', visibleWith = [layer] }) {
   const night = variant === 'night';
   const [island, data, nightData] = await Promise.all([
     fetchJson('/data/island.json'), fetchJson('/data/scene.json'),
@@ -187,8 +188,13 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   }
   const update = () => setRunning(onScreen && !document.hidden && !frozen);
   document.addEventListener('visibilitychange', update);
-  const io = new IntersectionObserver((entries) => { onScreen = entries.some((e) => e.isIntersecting); update(); }, { threshold: 0 });
-  io.observe(layer.closest('.hero') ?? layer);
+  const seen = new Map();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) seen.set(e.target, e.isIntersecting);
+    onScreen = [...seen.values()].some(Boolean);
+    update();
+  }, { threshold: 0 });
+  for (const el of visibleWith) if (el) io.observe(el);
   // Start mid-loop so the bots are already busy on the first frame.
   step(0.05);
   draw();
@@ -207,6 +213,11 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     focusBot(nick, animate = true) { rig.focus(nick, animate); draw(); },
     seek(nick, tick) { world.seek(nick, tick); draw(); },
     heroView(animate = true) { rig.hero(animate); draw(); },
+    // Scroll flight: the stops in order, then progress along them (-1 = first screen).
+    setPath(nicks) { rig.setPath(nicks); },
+    fly(s, instant = false) { rig.fly(s, instant); if (instant && !running) draw(); },
+    // Stills of the stations are framed in the middle, without the first screen's shift.
+    centerView(on = true) { rig.centered = on; rig.resize(width, height); draw(); },
     // Runs the simulation for n seconds without waiting for frames (screenshots).
     settle(seconds) {
       const steps = Math.round(seconds * 30);
