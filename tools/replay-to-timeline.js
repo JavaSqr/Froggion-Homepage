@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { pathToFileURL } from 'node:url';
 import { readMcpr } from './lib/mcpr.js';
 import { createRegistry, exportIsland } from './lib/world.js';
 import { simulate } from './lib/simulate.js';
@@ -182,7 +183,7 @@ function buildReport({ takes, bots, chosen, out, island, sizes, reg }) {
   return L.join('\n');
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   convert({ suggest: process.argv.includes('--suggest') }).catch((e) => {
     console.error(e);
     process.exit(1);

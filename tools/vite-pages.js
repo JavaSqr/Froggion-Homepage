@@ -28,7 +28,8 @@ export function pagesPlugin() {
     configureServer(server) {
       server.watcher.add(WATCH.map((p) => path.join(ROOT, p)));
       server.watcher.on('change', async (file) => {
-        if (!WATCH.some((p) => file.startsWith(path.join(ROOT, p)))) return;
+        const rel = path.relative(ROOT, file).split(path.sep).join('/');
+        if (!WATCH.some((p) => rel === p || rel.startsWith(`${p}/`))) return;
         await writePages();
         server.ws.send({ type: 'full-reload' });
       });

@@ -16,7 +16,7 @@ const FRAMES = [
   { file: 'poster-portrait.webp', width: 720, height: 1280 },
 ];
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
+const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore', shell: process.platform === 'win32' });
 try {
   for (let i = 0; i < 50; i++) {
     try { if ((await fetch(`http://localhost:${PORT}/`)).ok) break; } catch { /* starting */ }

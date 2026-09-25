@@ -34,7 +34,7 @@ async function waitForServer(url, tries = 50) {
   throw new Error(`server at ${url} did not start`);
 }
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
+const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore', shell: process.platform === 'win32' });
 try {
   await waitForServer(`http://localhost:${PORT}/`);
   fs.mkdirSync(outDir, { recursive: true });
