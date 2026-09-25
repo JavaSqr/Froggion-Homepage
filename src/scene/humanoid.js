@@ -25,6 +25,7 @@ export class Humanoid {
     Object.assign(this, rig);
     const baseMat = new MeshLambertMaterial({ map: skin, alphaTest: 0.5, side: FrontSide });
     const outerMat = new MeshLambertMaterial({ map: skin, alphaTest: 0.5, side: DoubleSide });
+    this.materials = [baseMat, outerMat];
     this.outlineMat = new MeshBasicMaterial({ color: outlineColor, side: BackSide });
     this.parts = {};
     this.outlines = [];

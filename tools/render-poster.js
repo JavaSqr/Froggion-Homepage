@@ -1,5 +1,5 @@
 // Renders the first-screen poster frames (shown until three.js loads, and without WebGL)
-// from the built site: public/poster.webp (landscape) and public/poster-portrait.webp.
+// from the built site: public/poster[-night].webp (landscape) and public/poster[-night]-portrait.webp.
 //   npm run build && node tools/render-poster.js
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +14,8 @@ const MOMENT = { FroggyMiner: 60, FroggyFisherman: 98, FroggyFarmer: 120, Froggy
 const FRAMES = [
   { file: 'poster.webp', width: 1600, height: 900 },
   { file: 'poster-portrait.webp', width: 720, height: 1280 },
+  { file: 'poster-night.webp', width: 1600, height: 900, night: true },
+  { file: 'poster-night-portrait.webp', width: 720, height: 1280, night: true },
 ];
 
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore', shell: process.platform === 'win32' });
@@ -26,7 +28,7 @@ try {
   const browser = await chromium.launch({ executablePath, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   for (const f of FRAMES) {
     const page = await browser.newPage({ viewport: { width: f.width, height: f.height }, deviceScaleFactor: 1 });
-    await page.goto(`http://localhost:${PORT}/?poster&motion`, { waitUntil: 'load' });
+    await page.goto(`http://localhost:${PORT}/?poster&motion&${f.night ? 'night' : 'day'}`, { waitUntil: 'load' });
     await page.waitForFunction(() => window.__froggion?.scene?.ready, null, { timeout: 60000 });
     await page.evaluate((moment) => {
       const s = window.__froggion.scene;

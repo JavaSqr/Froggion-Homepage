@@ -98,8 +98,10 @@ class Living {
 }
 
 export class World {
-  constructor({ scene, island, decoded, meta, assets, particles, items, lite }) {
+  constructor({ scene, island, decoded, meta, assets, particles, items, lite, lit = false }) {
     this.scene = scene;
+    // Night: entities take the light of the cell they are in.
+    this.lit = lit;
     this.island = island;
     this.particles = particles;
     this.items = items;
@@ -301,6 +303,11 @@ export class World {
       m.setHeldItem(item);
     }
     m.setupAnim({ ...p, crouching: bot.crouching, holdingItem: !!held });
+    if (this.lit) {
+      const c = this.island.lightColor(p.x, p.y + 1, p.z);
+      for (const mat of m.materials) mat.color.setRGB(c[0], c[1], c[2]);
+      m.heldItem?.traverse((o) => { if (o.isMesh) o.material.color.setRGB(c[0], c[1], c[2]); });
+    }
     bot.tag.position.set(p.x, p.y + (bot.crouching ? 1.5 : 1.8) + 0.5, p.z);
     for (const e of bot.entities.values()) this.renderEntity(bot, e, pt);
   }
@@ -313,6 +320,7 @@ export class World {
       e.object.rotation.y = -p.bodyYaw * DEG;
       e.model.tilt.rotation.z = -p.death * 90 * DEG;
       e.model.setupAnim(p);
+      if (this.lit) { const c = this.island.lightColor(p.x, p.y + 1, p.z); e.model.material.color.setRGB(c[0], c[1], c[2]); }
     } else if (e.kind === 'fishing_bobber') {
       e.object.position.set(x, y + 0.25, z);
       const tip = this.rodTip(bot, pt);

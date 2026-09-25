@@ -435,6 +435,56 @@ for (let s = 0; s < 10; s++) {
   };
 }
 
+// Night lights. Lantern texture layout (pixels): body sides 0..6 × 0..7, body top/bottom 0..6 × 9..15,
+// cap sides 7..11 × 0..2, cap top 7..11 × 3..7, chain 13..15 × 0..6.
+T['block/lantern'] = () => {
+  const t = new Tex();
+  const iron = hex('#2c2c31'), iron2 = hex('#3d3d44'), hot = hex('#fff1b8'), glow = hex('#ffd27a'), warm = hex('#f5a84a');
+  for (let y = 0; y < 7; y++) for (let x = 0; x < 6; x++) {
+    const edge = x === 0 || x === 5 || y === 0 || y === 6;
+    const bar = y === 3 && (x === 0 || x === 5);
+    t.set(x, y, edge || bar ? (y === 0 ? iron2 : iron) : (y >= 2 && y <= 4 && x >= 2 && x <= 3 ? hot : y === 1 || y === 5 ? warm : glow));
+  }
+  for (let y = 9; y < 15; y++) for (let x = 0; x < 6; x++) t.set(x, y, x === 0 || x === 5 || y === 9 || y === 14 ? iron : iron2);
+  for (let x = 7; x < 11; x++) { t.set(x, 0, iron2); t.set(x, 1, iron); }
+  for (let y = 3; y < 7; y++) for (let x = 7; x < 11; x++) t.set(x, y, (x + y) % 3 === 0 ? iron2 : iron);
+  for (let y = 0; y < 6; y++) { t.set(13, y, y % 2 ? iron : iron2); t.set(14, y, y % 2 ? iron2 : iron); }
+  return t;
+};
+// Torch: stick in columns 7..8, flame on top (rows 6..8), vanilla-style UV rows.
+T['block/torch'] = () => {
+  const t = new Tex();
+  const wood = [hex('#5a4220'), hex('#7a5a2c'), hex('#8e6c38')];
+  for (let y = 8; y < 16; y++) { t.set(7, y, wood[(y + 1) % 3]); t.set(8, y, wood[y % 3]); }
+  t.set(7, 6, hex('#fff6c8')); t.set(8, 6, hex('#ffd35a'));
+  t.set(7, 7, hex('#ffb53a')); t.set(8, 7, hex('#ff8f22'));
+  t.set(7, 13, hex('#4a361b')); t.set(8, 13, hex('#4a361b')); t.set(7, 14, hex('#4a361b')); t.set(8, 14, hex('#4a361b'));
+  return t;
+};
+T['environment/moon'] = () => {
+  const t = new Tex(32, 32);
+  const r = rng(801);
+  const base = ['#d9dde6', '#cfd4de', '#e3e7ee'].map((h) => hex(h));
+  const crater = ['#aab2c2', '#b8bfcc'].map((h) => hex(h));
+  t.rect(6, 6, 20, 20, () => base[Math.floor(r() * base.length)]);
+  for (const [cx, cy, w, h] of [[9, 9, 4, 3], [17, 12, 5, 4], [11, 18, 3, 3], [20, 20, 3, 2], [14, 8, 2, 2], [8, 22, 2, 2]]) t.rect(cx, cy, w, h, () => crater[Math.floor(r() * 2)]);
+  return t;
+};
+T['particle/flame'] = () => art([
+  '........', '...y....', '..yYy...', '..YWYy..', '.yYWWYy.', '.oYYYYo.', '..oooo..', '........',
+], { y: hex('#ffd35a'), Y: hex('#ffb53a'), W: hex('#fff6c8'), o: hex('#ff7a1a') });
+T['particle/lava'] = () => art([
+  '........', '........', '...oo...', '..oYYo..', '..oYYo..', '...oo...', '........', '........',
+], { o: hex('#e0541a'), Y: hex('#ffc04a') });
+T['particle/glow'] = () => {
+  const t = new Tex(32, 32);
+  return t.each((x, y) => {
+    const d = Math.hypot(x - 15.5, y - 15.5) / 15.5;
+    const a = Math.max(0, 1 - d);
+    return [255, 255, 255, Math.round(255 * a ** 1.5)];
+  });
+};
+
 // ---------- items ----------
 
 const ITEM_OUTLINE = hex('#1d1d22');

@@ -1,7 +1,7 @@
 // Island scene: loads data and textures, builds the island and bots, runs the loop, exposes picking.
 import {
-  AmbientLight, ColorManagement, DirectionalLight, Fog, HemisphereLight, LinearSRGBColorSpace, PCFShadowMap,
-  PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, WebGLRenderer, Texture, NearestFilter,
+  ColorManagement, LinearSRGBColorSpace, PCFShadowMap, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3,
+  WebGLRenderer, Texture, NearestFilter,
 } from 'three';
 import { loadTextures, buildAtlas, loadImage } from './assets.js';
 import { createIslandView, createMaterials, islandTextureNames, FLUID_TEXTURES } from './island.js';
@@ -11,6 +11,8 @@ import { Particles, PARTICLE_TEXTURES } from './particles.js';
 import { ItemFactory } from './items.js';
 import { modelFor } from './blocks.js';
 import { CameraRig } from './camera.js';
+import { dayAtmosphere, nightAtmosphere } from './atmosphere.js';
+import { nightLightmap } from './light.js';
 
 ColorManagement.enabled = false;
 
@@ -26,12 +28,17 @@ function pixelTexture(image) {
   return t;
 }
 
-export async function startScene({ layer, bots: meta, lite = false, debug = false }) {
-  const [island, data] = await Promise.all([fetchJson('/data/island.json'), fetchJson('/data/scene.json')]);
+export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day' }) {
+  const night = variant === 'night';
+  const [island, data, nightData] = await Promise.all([
+    fetchJson('/data/island.json'), fetchJson('/data/scene.json'),
+    night ? fetchJson('/data/night.json') : Promise.resolve({ blocks: [] }),
+  ]);
   const decoded = decodeScene(data);
+  const nightStates = nightData.blocks.map((b) => b[3]);
 
   // Every texture the scene uses, each from its own file.
-  const blockNames = new Set([...islandTextureNames(island.palette), ...islandTextureNames(data.palette)]);
+  const blockNames = new Set([...islandTextureNames(island.palette), ...islandTextureNames(data.palette), ...islandTextureNames(nightStates)]);
   const breakTextures = new Set();
   for (const b of decoded.bots) for (const list of b.effects.values()) for (const [, e] of list) {
     if (e.type !== 'break') continue;
@@ -48,6 +55,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     ...FLUID_TEXTURES, ...PARTICLE_TEXTURES, ...breakTextures,
     ...[...itemNames].map((n) => `item/${n}`),
     'entity/creeper', 'entity/fishing_bobber', 'entity/experience_orb',
+    ...(night ? ['environment/moon'] : []),
     ...Array.from({ length: 10 }, (_, i) => `block/destroy_stage_${i}`),
   ]);
   const [blockImages, otherImages, skinImages] = await Promise.all([
@@ -63,7 +71,10 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   const materials = createMaterials(atlas, images);
   const dynamic = [];
   for (const b of decoded.bots) for (const [x, y, z, s] of b.blocksInit) dynamic.push([x, y, z, s]);
-  const view = createIslandView({ island, extraStates: data.palette, dynamic, atlas, materials, fade: { y0: 1, y1: 14 }, depthFade: { y0: 3, y1: 19, min: 0.12 } });
+  const view = createIslandView({
+    island, extraStates: data.palette, dynamic, extraStatic: nightData.blocks, atlas, materials,
+    fade: { y0: 1, y1: 14 }, depthFade: { y0: 3, y1: 19, min: 0.12 }, lightmap: night ? nightLightmap() : null,
+  });
 
   const renderer = new WebGLRenderer({ antialias: !lite, alpha: true, powerPreference: lite ? 'low-power' : 'high-performance' });
   renderer.outputColorSpace = LinearSRGBColorSpace;
@@ -76,22 +87,10 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
 
   const scene = new Scene();
   scene.add(view.group);
-  // Muted daylight: sky and ground fill plus a low sun that casts soft shadows across the island.
   const [sx, , sz] = island.size;
   const center = new Vector3(sx / 2, 20, sz / 2);
-  scene.add(new AmbientLight(0xffffff, 0.36 * Math.PI));
-  scene.add(new HemisphereLight(0xc9d8e6, 0x3a3226, 0.25 * Math.PI));
-  const sun = new DirectionalLight(0xfff1dc, 0.55 * Math.PI);
-  sun.position.copy(center).add(new Vector3(-18, 30, 12));
-  sun.target.position.copy(center);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(lite ? 1024 : 2048, lite ? 1024 : 2048);
-  Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 90 });
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.03;
-  sun.shadow.radius = 3;
-  scene.add(sun, sun.target);
-  scene.fog = new Fog(0x0b0f0c, 55, 110);
+  const camera = new PerspectiveCamera(35, 1, 0.1, 600);
+  const rig = new CameraRig(camera, { island, decoded });
 
   const solidAt = (x, y, z) => {
     const m = view.modelAt(Math.floor(x), Math.floor(y), Math.floor(z));
@@ -105,6 +104,10 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   for (const t of breakTextures) if (blockImages.has(t)) particleImages.set(t, blockImages.get(t));
   const particles = new Particles({ images: particleImages, max: lite ? 400 : 1500, isSolid: solidAt, isWater: waterAt });
   scene.add(particles.points);
+  const atmosphere = night
+    ? nightAtmosphere(scene, { center, lite, heroPose: rig.heroPose(0), images, emitters: view.emitters, particles })
+    : dayAtmosphere(scene, { center, lite });
+  particles.dim = atmosphere.particleDim;
 
   const assets = {
     images,
@@ -112,10 +115,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     creeper: pixelTexture(images.get('entity/creeper')),
     destroy: Array.from({ length: 10 }, (_, i) => pixelTexture(images.get(`block/destroy_stage_${i}`))),
   };
-  const world = new World({ scene, island: view, decoded, meta, assets, particles, items: new ItemFactory(images), lite });
-
-  const camera = new PerspectiveCamera(35, 1, 0.1, 500);
-  const rig = new CameraRig(camera, { island, decoded });
+  const world = new World({ scene, island: view, decoded, meta, assets, particles, items: new ItemFactory(images), lite, lit: night });
 
   let width = 0, height = 0;
   const resize = () => {
@@ -170,7 +170,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     clock += dt;
     world.advance(dt);
     pAcc += dt * 20;
-    while (pAcc >= 1) { particles.tick(); pAcc -= 1; }
+    while (pAcc >= 1) { atmosphere.tick(); particles.tick(); pAcc -= 1; }
     rig.update(dt);
   }
   function draw() {
@@ -197,6 +197,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
 
   const api = {
     ready: true,
+    variant,
     canvas: renderer.domElement,
     bots: world.bots.map((b) => b.nick),
     pick,

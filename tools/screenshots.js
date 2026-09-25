@@ -11,6 +11,9 @@ const outDir = path.resolve(process.argv[2] || path.join(ROOT, 'screenshots'));
 const only = process.argv.slice(3);
 const PORT = 4179;
 
+// NIGHT=1 takes the same shots of the night variant.
+const NIGHT = process.env.NIGHT === '1';
+const withVariant = (url) => (NIGHT ? `${url}${url.includes('?') ? '&' : '?'}night` : url);
 export const SHOTS = [
   { name: 'first-screen', viewport: [1440, 900], url: '/' },
   { name: 'first-screen-mobile', viewport: [390, 844], url: '/', mobile: true },
@@ -50,7 +53,7 @@ try {
     const page = await context.newPage();
     page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${shot.name}] ${m.type()}: ${m.text()}`); });
     page.on('pageerror', (e) => console.log(`[${shot.name}] pageerror: ${e.message}`));
-    await page.goto(`http://localhost:${PORT}${shot.url}`, { waitUntil: 'load' });
+    await page.goto(`http://localhost:${PORT}${withVariant(shot.url)}`, { waitUntil: 'load' });
     // Close-ups of the scene alone: hide the first-screen copy that sits on top of it.
     if (shot.clean) await page.addStyleTag({ content: '.hero__copy, .scene-hint, .site-header { visibility: hidden !important; }' });
     if (shot.reducedMotion) {
@@ -59,7 +62,7 @@ try {
       console.log(`[${shot.name}] live scene: ${live}`);
       if (shot.listCard) await page.click(`.bot-list__btn[data-bot="${shot.listCard}"]`);
       await page.waitForTimeout(200);
-      const file = path.join(outDir, `${shot.name}.png`);
+      const file = path.join(outDir, `${shot.name}${NIGHT ? '-night' : ''}.png`);
       await page.screenshot({ path: file });
       console.log('saved', path.relative(ROOT, file));
       await context.close();
@@ -82,7 +85,7 @@ try {
     }
     await page.evaluate(() => window.__froggion.scene.settle(0));
     await page.waitForTimeout(200);
-    const file = path.join(outDir, `${shot.name}.png`);
+    const file = path.join(outDir, `${shot.name}${NIGHT ? '-night' : ''}.png`);
     await page.screenshot({ path: file });
     console.log('saved', path.relative(ROOT, file));
     await context.close();

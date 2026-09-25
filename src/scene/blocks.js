@@ -95,9 +95,25 @@ function buildModel(name, p) {
     case 'glass':
       return { kind: 'cube', tex: all('block/glass'), layer: 'cutout', cullSame: 'glass' };
     case 'farmland':
-      return { kind: 'boxes', boxes: [box([0, 0, 0], [16, 15, 16], { ...all('block/dirt'), up: 'block/farmland_moist' })] };
+      return { kind: 'boxes', lightBlock: 15, boxes: [box([0, 0, 0], [16, 15, 16], { ...all('block/dirt'), up: 'block/farmland_moist' })] };
     case 'grass_path':
-      return { kind: 'boxes', boxes: [box([0, 0, 0], [16, 15, 16], { ...all('block/grass_path_side'), up: 'block/grass_path_top', down: 'block/dirt' })] };
+      return { kind: 'boxes', lightBlock: 15, boxes: [box([0, 0, 0], [16, 15, 16], { ...all('block/grass_path_side'), up: 'block/grass_path_top', down: 'block/dirt' })] };
+    case 'lantern': {
+      const o = p.hanging === 'true' ? 1 : 0;
+      const tex = all('block/lantern');
+      const top = o
+        ? { ...box([7.5, 10, 7.5], [8.5, 16, 8.5], tex), uv: { side: [13, 0, 14, 6], up: [13, 0, 14, 1], down: [13, 0, 14, 1] } }
+        : { ...box([7.5, 9, 7.5], [8.5, 10.5, 8.5], tex), uv: { side: [13, 0, 14, 1.5], up: [13, 0, 14, 1], down: [13, 0, 14, 1] } };
+      return {
+        kind: 'boxes', layer: 'cutout', emit: 15, boxes: [
+          { ...box([5, o, 5], [11, 7 + o, 11], tex), uv: { side: [0, 0, 6, 7], up: [0, 9, 6, 15], down: [0, 9, 6, 15] } },
+          { ...box([6, 7 + o, 6], [10, 9 + o, 10], tex), uv: { side: [7, 0, 11, 2], up: [7, 3, 11, 7], down: [7, 3, 11, 7] } },
+          top,
+        ],
+      };
+    }
+    case 'torch':
+      return { kind: 'boxes', layer: 'cutout', emit: 14, boxes: [{ ...box([7, 0, 7], [9, 10, 9], all('block/torch')), uv: { side: [7, 6, 9, 16], up: [7, 6, 9, 8], down: [7, 13, 9, 15] } }] };
     case 'cobblestone_slab':
       return { kind: 'boxes', boxes: slabBoxes(p.type, all('block/cobblestone')), fullIfDouble: p.type === 'double' };
     case 'stone_brick_slab':
@@ -123,7 +139,7 @@ function buildModel(name, p) {
     case 'water':
       return { kind: 'fluid', fluid: 'water', level: Number(p.level ?? 0) };
     case 'lava':
-      return { kind: 'fluid', fluid: 'lava', level: Number(p.level ?? 0) };
+      return { kind: 'fluid', fluid: 'lava', level: Number(p.level ?? 0), emit: 15 };
     default:
       break;
   }

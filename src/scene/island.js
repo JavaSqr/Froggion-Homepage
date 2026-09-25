@@ -5,6 +5,7 @@ import {
 } from 'three';
 import { createMesher, decodeGrid } from './mesher.js';
 import { modelFor, texturesOf } from './blocks.js';
+import { computeLight } from './light.js';
 
 export const FLUID_TEXTURES = ['block/water_still', 'block/water_flow', 'block/lava_still'];
 
@@ -62,16 +63,22 @@ export function createMaterials(atlas, images) {
 /**
  * island: island.json. extraStates: block states used by dynamic blocks (scene.json palette).
  * dynamic: [[x, y, z, state]] initial dynamic cells in island-local coordinates.
+ * extraStatic: [[x, y, z, state]] blocks added to the island (night lights).
+ * lightmap: (block, sky) → [r, g, b]; when set, block and sky light are baked into the mesh.
  */
-export function createIslandView({ island, extraStates, dynamic, atlas, materials, fade, depthFade }) {
+export function createIslandView({ island, extraStates, dynamic, extraStatic = [], atlas, materials, fade, depthFade, lightmap = null }) {
   const palette = [...island.palette];
   const indexOf = new Map(palette.map((s, i) => [s, i]));
-  for (const s of extraStates) if (!indexOf.has(s)) { indexOf.set(s, palette.length); palette.push(s); }
+  const addState = (s) => { if (!indexOf.has(s)) { indexOf.set(s, palette.length); palette.push(s); } return indexOf.get(s); };
+  for (const s of extraStates) addState(s);
+  for (const [, , , s] of extraStatic) addState(s);
   const overrides = new Map();
   const grid = decodeGrid(island, overrides);
-  const mesher = createMesher({ palette, uvOf: atlas.uvOf, fade, depthFade });
   const dynKeys = new Set(dynamic.map(([x, y, z]) => grid.index(x, y, z)));
   for (const [x, y, z, s] of dynamic) overrides.set(grid.index(x, y, z), indexOf.get(s));
+  for (const [x, y, z, s] of extraStatic) overrides.set(grid.index(x, y, z), indexOf.get(s));
+  const light = lightmap ? computeLight(grid, palette.map((s) => modelFor(s))) : null;
+  const mesher = createMesher({ palette, uvOf: atlas.uvOf, fade, depthFade, lighting: light ? { light, map: lightmap } : null });
 
   const group = new Group();
   group.name = 'island';
@@ -125,5 +132,22 @@ export function createIslandView({ island, extraStates, dynamic, atlas, material
     }
   }
 
-  return { group, setBlock, update, grid, palette, modelAt: (x, y, z) => mesher.models[grid.get(x, y, z)] };
+  // Light sources for glows: [x, y, z, level, kind] in island-local cell coordinates.
+  const emitters = [];
+  const [sx, sy, sz] = grid.size;
+  for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) {
+    const m = mesher.models[grid.get(x, y, z)];
+    if (m?.emit) emitters.push([x, y, z, m.emit, palette[grid.get(x, y, z)].split('[')[0]]);
+  }
+
+  return {
+    group, setBlock, update, grid, palette, emitters,
+    modelAt: (x, y, z) => mesher.models[grid.get(x, y, z)],
+    // Light colour at a point (entities are lit by the cell they stand in, like in the game).
+    lightColor(x, y, z) {
+      if (!light) return null;
+      const [b, sk] = light.at(Math.floor(x), Math.floor(y), Math.floor(z));
+      return lightmap(b, sk);
+    },
+  };
 }

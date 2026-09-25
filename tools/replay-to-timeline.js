@@ -45,7 +45,8 @@ export async function convert({ root = ROOT, suggest = false, write = true, log 
   const dynamicByBot = new Map(nicks.map((n) => [n, new Map()]));
   for (const take of takes) for (const [nick, { zone }] of take.perBot) for (const b of zone.blocks) dynamicByBot.get(nick).set(b.key, b.pos);
   const allDynamic = [...dynamicByBot.values()].flatMap((m) => [...m.values()]);
-  const island = exportIsland(base.initialWorld, { keep: allDynamic });
+  const nightLights = readNightLights(src('night.json'), base.initialWorld, reg, allDynamic);
+  const island = exportIsland(base.initialWorld, { keep: [...allDynamic, ...nightLights.map((l) => l.at)] });
 
   const palette = new Palette(reg);
   const out = [];
@@ -81,6 +82,7 @@ export async function convert({ root = ROOT, suggest = false, write = true, log 
     bots: out.map(({ seam, ...b }) => b),
   };
   const islandJson = { version: 1, origin: island.origin, size: island.size, order: 'yzx', palette: island.palette, rle: island.rle };
+  const nightJson = { version: 1, blocks: nightLights.map(({ at, block }) => [...at.map((v, i) => v - island.origin[i]), block]) };
   const sceneText = JSON.stringify(sceneJson);
   const islandText = JSON.stringify(islandJson);
   const sizes = {
@@ -94,13 +96,31 @@ export async function convert({ root = ROOT, suggest = false, write = true, log 
     fs.mkdirSync(dataDir, { recursive: true });
     fs.writeFileSync(path.join(dataDir, 'scene.json'), sceneText);
     fs.writeFileSync(path.join(dataDir, 'island.json'), islandText);
+    fs.writeFileSync(path.join(dataDir, 'night.json'), JSON.stringify(nightJson));
     fs.writeFileSync(loopsFile, JSON.stringify(chosen, null, 2).replace(/\{\n\s+("replay"[^}]+)\n\s+\}/g, (m, body) => `{ ${body.replace(/\n\s+/g, ' ')} }`) + '\n');
     fs.mkdirSync(path.join(root, 'reports'), { recursive: true });
     fs.writeFileSync(path.join(root, 'reports/replays.md'), report);
   }
   log(`scene.json ${(sizes.scene[0] / 1024).toFixed(1)} KB (gzip ${(sizes.scene[1] / 1024).toFixed(1)} KB), island.json ${(sizes.island[0] / 1024).toFixed(1)} KB (gzip ${(sizes.island[1] / 1024).toFixed(1)} KB)`);
   for (const [nick, c] of Object.entries(chosen)) log(`${nick}: ${c.replay} ticks ${c.from}..${c.to} (${((c.to - c.from) / 20).toFixed(1)} s)`);
-  return { scene: sceneJson, island: islandJson, takes, chosen, report, sizes };
+  return { scene: sceneJson, island: islandJson, night: nightJson, takes, chosen, report, sizes };
+}
+
+// Extra light sources for the night scene (source/night.json), checked against the island.
+function readNightLights(file, world, reg, dynamic) {
+  if (!fs.existsSync(file)) return [];
+  const { lights = [] } = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const dyn = new Set(dynamic.map((p) => p.join(',')));
+  return lights.map(({ block, at }) => {
+    const [x, y, z] = at;
+    if (!world.contains(x, y, z) || !reg.isAir(world.get(x, y, z)) || dyn.has(at.join(','))) {
+      throw new Error(`night.json: ${block} at ${at.join(',')} is not an empty cell of the island`);
+    }
+    const hanging = /hanging=true/.test(block);
+    const support = hanging ? [x, y + 1, z] : [x, y - 1, z];
+    if (reg.isAir(world.get(...support))) throw new Error(`night.json: ${block} at ${at.join(',')} has nothing to ${hanging ? 'hang from' : 'stand on'}`);
+    return { block, at };
+  });
 }
 
 function count(list, key) {

@@ -5,6 +5,7 @@ import { modelFor, plantOffset } from './blocks.js';
 export const SHADE = { up: 1, down: 0.5, north: 0.8, south: 0.8, east: 0.6, west: 0.6 };
 const AO_LEVELS = [0.55, 0.7, 0.85, 1];
 const FLUID_SOURCE_HEIGHT = 8 / 9;
+const ONE = [1, 1, 1];
 
 const DIRS = {
   up: [0, 1, 0], down: [0, -1, 0], north: [0, 0, -1], south: [0, 0, 1], west: [-1, 0, 0], east: [1, 0, 0],
@@ -36,13 +37,14 @@ function faceUV(face, f, t) {
 
 class Buffer {
   constructor() { this.pos = []; this.uv = []; this.color = []; this.index = []; this.count = 0; }
-  quad(v, uv, shade, alpha = [1, 1, 1, 1]) {
+  quad(v, uv, shade, alpha = [1, 1, 1, 1], light = null) {
     const n = this.count;
     for (let i = 0; i < 4; i++) {
       this.pos.push(v[i][0], v[i][1], v[i][2]);
       this.uv.push(uv[i][0], uv[i][1]);
       const s = shade[i] * (this.sink ? this.sink(v[i][1]) : 1);
-      this.color.push(s, s, s, alpha[i]);
+      const l = light ? light[i] : ONE;
+      this.color.push(s * l[0], s * l[1], s * l[2], alpha[i]);
     }
     this.index.push(n, n + 3, n + 2, n, n + 2, n + 1);
     this.count += 4;
@@ -59,7 +61,8 @@ class Buffer {
  * fade: optional { y0, y1 } fading fluid alpha from 0 at y0 to 1 at y1 (the waterfall's bottom).
  */
 // depthFade: { y0, y1, min } darkens everything below y1 towards `min` at y0, so the rock underside sinks into the dark.
-export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
+// lighting: { light: computeLight(...) result, map(block, sky) → [r, g, b] } bakes block/sky light into vertex colours.
+export function createMesher({ palette, uvOf, fade = null, depthFade = null, lighting = null }) {
   const sink = (y) => {
     if (!depthFade) return 1;
     const t = Math.max(0, Math.min(1, (y - depthFade.y0) / (depthFade.y1 - depthFade.y0)));
@@ -91,7 +94,31 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
       return AO_LEVELS[s1 && s2 ? 0 : 3 - (s1 + s2 + c)];
     }
 
-    function addBox(buf, x, y, z, from, to, tex, cullFn) {
+    // Smooth lighting: each vertex averages the light of the four cells around it in front of the face.
+    const lightCell = (x, y, z) => lighting.light.at(x, y, z);
+    function cellLight(x, y, z) {
+      const [b, s] = lightCell(x, y, z);
+      const c = lighting.map(b, s);
+      return [c, c, c, c];
+    }
+    function smoothLight(face, cx, cy, cz, cs, inside) {
+      const d = DIRS[face];
+      const lx = inside ? cx : cx + d[0], ly = inside ? cy : cy + d[1], lz = inside ? cz : cz + d[2];
+      const axes = [0, 1, 2].filter((a) => d[a] === 0);
+      const center = opaque(lx, ly, lz) ? lightCell(cx, cy, cz) : lightCell(lx, ly, lz);
+      return cs.map((corner) => {
+        const sgn = axes.map((a) => (corner[a] > 0.5 ? 1 : -1));
+        const cell = (a0, a1) => { const p = [lx, ly, lz]; p[axes[0]] += a0; p[axes[1]] += a1; return p; };
+        const p1 = cell(sgn[0], 0), p2 = cell(0, sgn[1]), pk = cell(sgn[0], sgn[1]);
+        const o1 = opaque(...p1), o2 = opaque(...p2);
+        const l1 = o1 ? center : lightCell(...p1);
+        const l2 = o2 ? center : lightCell(...p2);
+        const lk = (o1 && o2) || opaque(...pk) ? center : lightCell(...pk);
+        return lighting.map((center[0] + l1[0] + l2[0] + lk[0]) / 4, (center[1] + l1[1] + l2[1] + lk[1]) / 4);
+      });
+    }
+
+    function addBox(buf, x, y, z, from, to, tex, cullFn, uvOverride = null) {
       const f = from.map((v) => v / 16), t = to.map((v) => v / 16);
       for (const face of Object.keys(DIRS)) {
         const d = DIRS[face];
@@ -100,12 +127,13 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
         const onEdge = gap === 0;
         if (onEdge && cullFn(x + d[0], y + d[1], z + d[2])) continue;
         const cs = corners(face, f, t);
-        const [u0, v0, u1, v1] = faceUV(face, from, to);
+        const [u0, v0, u1, v1] = uvOverride?.[face] ?? (face !== 'up' && face !== 'down' ? uvOverride?.side : null) ?? faceUV(face, from, to);
         const [au0, av0, au1, av1] = uvOf(tex[face]);
         const U = (u) => au0 + (au1 - au0) * (u / 16), V = (v) => av0 + (av1 - av0) * (v / 16);
         const uv = [[U(u0), V(v0)], [U(u1), V(v0)], [U(u1), V(v1)], [U(u0), V(v1)]];
         const shade = cs.map((c) => SHADE[face] * ao(face, x, y, z, c, gap > 0.125));
-        buf.quad(cs.map((c) => [x + c[0], y + c[1], z + c[2]]), uv, shade);
+        const light = lighting ? smoothLight(face, x, y, z, cs, gap > 0.125) : null;
+        buf.quad(cs.map((c) => [x + c[0], y + c[1], z + c[2]]), uv, shade, undefined, light);
       }
     }
 
@@ -113,7 +141,8 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
       const [u0, v0, u1, v1] = uvOf(tex);
       const uv = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
       const quad = [[a[0], y1, a[1]], [b[0], y1, b[1]], [b[0], y0, b[1]], [a[0], y0, a[1]]].map((c) => [x + c[0], y + c[1], z + c[2]]);
-      buf.quad(quad, uv, [1, 1, 1, 1]);
+      const cx = Math.floor(x + 0.5), cz = Math.floor(z + 0.5), cy = Math.floor(y + 0.5);
+      buf.quad(quad, uv, [1, 1, 1, 1], undefined, lighting ? cellLight(cx, cy, cz) : null);
     }
 
     function fluidHeight(m, above) {
@@ -123,6 +152,9 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
       if (level >= 8) return FLUID_SOURCE_HEIGHT;
       return level === 0 ? FLUID_SOURCE_HEIGHT : (8 - level) / 9;
     }
+
+    // Fluids take the light of the cell a face looks into, or their own cell if that one is solid.
+    const fluidLight = (nx, ny, nz, x, y, z) => (lighting ? (opaque(nx, ny, nz) ? cellLight(x, y, z) : cellLight(nx, ny, nz)) : null);
 
     function addFluid(x, y, z, m) {
       const water = isWater(m);
@@ -136,7 +168,7 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
       if (!above) {
         const cs = corners('up', [0, 0, 0], [1, h, 1]).map((c) => [x + c[0], y + c[1], z + c[2]]);
         const a = alphaAt(y + h);
-        still.quad(cs, tile(0, 0, 1, 1), [1, 1, 1, 1].map((v) => v * SHADE.up), [a, a, a, a]);
+        still.quad(cs, tile(0, 0, 1, 1), [1, 1, 1, 1].map((v) => v * SHADE.up), [a, a, a, a], fluidLight(x, y + 1, z, x, y, z));
       }
       // Water inside a waterlogged block only shows its surface; the block itself covers the rest.
       if (m.kind !== 'fluid') return;
@@ -144,7 +176,7 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
       if (!same(below) && !below.opaque) {
         const cs = corners('down', [0, 0, 0], [1, 1, 1]).map((c) => [x + c[0], y + c[1], z + c[2]]);
         const a = alphaAt(y);
-        still.quad(cs, tile(0, 0, 1, 1), [SHADE.down, SHADE.down, SHADE.down, SHADE.down], [a, a, a, a]);
+        still.quad(cs, tile(0, 0, 1, 1), [SHADE.down, SHADE.down, SHADE.down, SHADE.down], [a, a, a, a], fluidLight(x, y - 1, z, x, y, z));
       }
       for (const face of ['north', 'south', 'west', 'east']) {
         const d = DIRS[face];
@@ -159,7 +191,7 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
         const cs = corners(face, [0, bottom, 0], [1, h, 1]).map((c) => [x + c[0], y + c[1], z + c[2]]);
         const uv = tile(0, 1 - h, 1, 1 - bottom);
         const shade = SHADE[face];
-        flow.quad(cs, uv, [shade, shade, shade, shade], cs.map((c) => alphaAt(c[1])));
+        flow.quad(cs, uv, [shade, shade, shade, shade], cs.map((c) => alphaAt(c[1])), fluidLight(x + d[0], y, z + d[2], x, y, z));
       }
     }
 
@@ -178,7 +210,7 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null }) {
         };
         addBox(buf, x, y, z, [0, 0, 0], [16, 16, 16], m.tex, cull);
       } else if (m.kind === 'boxes') {
-        for (const b of m.boxes) addBox(buf, x, y, z, b.from, b.to, b.tex, (nx, ny, nz) => opaque(nx, ny, nz));
+        for (const b of m.boxes) addBox(buf, x, y, z, b.from, b.to, b.tex, (nx, ny, nz) => opaque(nx, ny, nz), b.uv);
       } else if (m.kind === 'cross') {
         const [ox, oy, oz] = m.offset ? plantOffset(x, y, z, m.offset) : [0, 0, 0];
         const lo = 0.05, hi = 0.95;

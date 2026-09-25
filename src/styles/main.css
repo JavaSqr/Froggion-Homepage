@@ -169,3 +169,6 @@ body.scene-live .bot-list:not(:focus-within) {
 /* Poster rendering (tools/render-poster.js): only the scene. */
 .poster-mode .site-header, .poster-mode .hero__copy, .poster-mode .scene-hint, .poster-mode .bot-list,
 .poster-mode .scene-poster, .poster-mode .hero::before, .poster-mode .jobs { display: none !important; }
+
+/* Night variant of the scene: a deep blue sky behind the island. */
+body[data-variant='night'] .scene-layer { background: radial-gradient(ellipse at 64% 36%, #121c30 0%, #0a0f1a 45%, #06080d 78%); }

@@ -19,6 +19,8 @@ export function renderAll(root) {
   return out;
 }
 
+const posterName = (config, portrait) => `/poster${config.scene?.variant === 'night' ? '-night' : ''}${portrait ? '-portrait' : ''}.webp`;
+
 function head({ t, lang, config }) {
   const url = config.siteUrl + lang.path;
   const alternates = config.languages
@@ -47,8 +49,8 @@ function head({ t, lang, config }) {
     <meta name="theme-color" content="#0b0f0c">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="preload" as="image" href="/poster.webp" media="(min-aspect-ratio: 1/1)" fetchpriority="high">
-    <link rel="preload" as="image" href="/poster-portrait.webp" media="(max-aspect-ratio: 1/1)" fetchpriority="high">
+    <link rel="preload" as="image" href="${posterName(config, false)}" media="(min-aspect-ratio: 1/1)" fetchpriority="high">
+    <link rel="preload" as="image" href="${posterName(config, true)}" media="(max-aspect-ratio: 1/1)" fetchpriority="high">
     <link rel="stylesheet" href="/src/styles/main.css">
     <script type="module" src="/src/main.js"></script>
   </head>`;
@@ -93,8 +95,8 @@ function hero({ t, config, bots }) {
   return `<section class="hero" id="top" aria-labelledby="hero-title">
       <div class="scene-layer" data-scene aria-label="${esc(t.scene.label)}" role="img">
         <picture class="scene-poster">
-          <source srcset="/poster-portrait.webp" media="(max-aspect-ratio: 1/1)">
-          <img src="/poster.webp" alt="${esc(t.scene.posterAlt)}" fetchpriority="high" decoding="async">
+          <source srcset="${posterName(config, true)}" media="(max-aspect-ratio: 1/1)">
+          <img src="${posterName(config, false)}" alt="${esc(t.scene.posterAlt)}" fetchpriority="high" decoding="async">
         </picture>
       </div>
       <div class="hero__copy">
@@ -143,7 +145,7 @@ export function renderPage(ctx) {
   return `<!doctype html>
 <html lang="${lang.code}">
   ${head(ctx)}
-  <body>
+  <body data-variant="${ctx.config.scene?.variant ?? 'day'}">
     <a class="skip-link" href="#main">${lang.code === 'ru' ? 'К содержимому' : 'Skip to content'}</a>
     ${header(ctx)}
     <main id="main">

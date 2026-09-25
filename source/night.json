@@ -1,0 +1,13 @@
+{
+  "comment": "Extra light sources for the night version of the scene. World coordinates; the cell must be empty. Standing blocks need a block below, hanging lanterns a block above.",
+  "lights": [
+    { "block": "lantern[hanging=true,waterlogged=false]", "at": [-222, 22, 24] },
+    { "block": "lantern[hanging=true,waterlogged=false]", "at": [-218, 22, 25] },
+    { "block": "lantern[hanging=false,waterlogged=false]", "at": [-224, 21, 26] },
+    { "block": "lantern[hanging=false,waterlogged=false]", "at": [-222, 21, 20] },
+    { "block": "lantern[hanging=false,waterlogged=false]", "at": [-220, 27, 18] },
+    { "block": "torch", "at": [-216, 21, 22] },
+    { "block": "torch", "at": [-212, 21, 26] },
+    { "block": "torch", "at": [-222, 21, 28] }
+  ]
+}

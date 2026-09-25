@@ -64,6 +64,7 @@ export class Particles {
     this.list = [];
     this.isSolid = isSolid;
     this.isWater = isWater;
+    this.dim = 0.8;
     const g = new BufferGeometry();
     this.pos = new Float32Array(max * 3);
     this.size = new Float32Array(max);
@@ -144,6 +145,10 @@ export class Particles {
         const scale = name === 'large_smoke' ? 2.5 : 1;
         return this.add({ pos: [...pos], vel: [vel[0] * 0.1, vel[1] * 0.1, vel[2] * 0.1], rise: 0.004, friction: 0.96, life: Math.floor((8 / (r() * 0.8 + 0.2)) * scale), frames: genericFrames(), frameMode: 'age', size: 0.2 * (r() * 0.5 + 0.5) * 0.75 * scale, rgb: [c, c, c], alpha: 0.75 });
       }
+      case 'flame':
+        return this.add({ pos: [pos[0] + (r() - 0.5) * 0.05, pos[1], pos[2] + (r() - 0.5) * 0.05], vel: [vel[0] * 0.01, vel[1] * 0.01 + 0.004, vel[2] * 0.01], friction: 0.96, life: Math.floor(8 / (r() * 0.8 + 0.2)) + 4, sprite: 'particle/flame', size: 0.12 * (r() * 0.4 + 0.8), shrink: true, bright: true });
+      case 'lava':
+        return this.add({ pos: [...pos], vel: [(r() - 0.5) * 0.12, r() * 0.4 + 0.05, (r() - 0.5) * 0.12], gravity: 0.75, friction: 0.999, life: Math.floor(16 / (r() * 0.8 + 0.2)), sprite: 'particle/lava', size: 0.1 * (r() * 2 + 0.2), shrink: true, bright: true, collide: true });
       case 'poof': {
         const c = r() * 0.3 + 0.7;
         return this.add({ pos: [...pos], vel: [vel[0] + (r() * 2 - 1) * 0.05, vel[1] + (r() * 2 - 1) * 0.05, vel[2] + (r() * 2 - 1) * 0.05], rise: 0.004, friction: 0.9, life: Math.floor(16 / (r() * 0.8 + 0.2)) + 2, frames: genericFrames(), frameMode: 'age', size: 0.14 * (r() * r() * 4 + 1), rgb: [c, c, c], alpha: 0.9 });
@@ -211,8 +216,10 @@ export class Particles {
       }
       const r = p.rectOverride ?? this.atlas.rect(name) ?? [0, 0, 0, 0];
       this.rect.set([r[0], r[1], r[2], r[3]], i * 4);
-      this.color.set([p.rgb[0] * 0.8, p.rgb[1] * 0.8, p.rgb[2] * 0.8, p.alpha], i * 4);
-      this.size[i] = p.size;
+      const k = p.bright ? 1 : this.dim;
+      this.color.set([p.rgb[0] * k, p.rgb[1] * k, p.rgb[2] * k, p.alpha], i * 4);
+      const age = (p.age + pt) / p.life;
+      this.size[i] = p.shrink ? p.size * (1 - age * age * 0.5) : p.size;
     }
     const g = this.geometry;
     g.setDrawRange(0, n);
@@ -229,5 +236,5 @@ export const PARTICLE_TEXTURES = [
   ...Array.from({ length: 4 }, (_, i) => `particle/splash_${i}`),
   ...Array.from({ length: 4 }, (_, i) => `particle/fishing_${i}`),
   ...Array.from({ length: 8 }, (_, i) => `particle/sweep_${i}`),
-  'particle/bubble', 'particle/damage',
+  'particle/bubble', 'particle/damage', 'particle/flame', 'particle/lava', 'particle/glow',
 ];

@@ -2,7 +2,18 @@
   "siteUrl": "https://froggion.bot",
   "panelUrl": "https://panel.froggion.bot/",
   "languages": [
-    { "code": "ru", "path": "/", "hreflang": "ru" },
-    { "code": "en", "path": "/en/", "hreflang": "en" }
-  ]
+    {
+      "code": "ru",
+      "path": "/",
+      "hreflang": "ru"
+    },
+    {
+      "code": "en",
+      "path": "/en/",
+      "hreflang": "en"
+    }
+  ],
+  "scene": {
+    "variant": "day"
+  }
 }

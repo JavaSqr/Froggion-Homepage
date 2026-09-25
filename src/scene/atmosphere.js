@@ -1,0 +1,132 @@
+// Lighting and sky for the two variants of the scene.
+//   day:   muted daylight, a low sun with soft shadows.
+//   night: block light baked into the island (lanterns, torches, lava), moonlight with shadows,
+//          stars, a moon, warm glows around the lights, flames and smoke on torches.
+import {
+  AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, DirectionalLight, Fog, HemisphereLight,
+  LinearFilter, Points, PointsMaterial, Sprite, SpriteMaterial, Vector3,
+} from 'three';
+import { spriteTexture } from './items.js';
+
+function shadowLight(light, center, lite, span = 22) {
+  light.target.position.copy(center);
+  light.castShadow = true;
+  light.shadow.mapSize.set(lite ? 1024 : 2048, lite ? 1024 : 2048);
+  Object.assign(light.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 1, far: 120 });
+  light.shadow.bias = -0.0004;
+  light.shadow.normalBias = 0.03;
+  light.shadow.radius = 3;
+  return light;
+}
+
+export function dayAtmosphere(scene, { center, lite }) {
+  scene.add(new AmbientLight(0xffffff, 0.36 * Math.PI));
+  scene.add(new HemisphereLight(0xc9d8e6, 0x3a3226, 0.25 * Math.PI));
+  const sun = shadowLight(new DirectionalLight(0xfff1dc, 0.55 * Math.PI), center, lite);
+  sun.position.copy(center).add(new Vector3(-18, 30, 12));
+  scene.add(sun, sun.target);
+  scene.fog = new Fog(0x0b0f0c, 55, 110);
+  return { variant: 'day', tick() {}, update() {}, entityLight: null, particleDim: 0.8 };
+}
+
+// Direction in the upper right of the first-screen view, for the moon.
+function moonDirection(heroPose) {
+  const f = new Vector3().subVectors(heroPose.target, heroPose.pos).normalize();
+  const right = new Vector3().crossVectors(f, new Vector3(0, 1, 0)).normalize();
+  const up = new Vector3().crossVectors(right, f).normalize();
+  return f.clone().addScaledVector(right, 0.3).addScaledVector(up, 0.24).normalize();
+}
+
+function stars(center, count) {
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < count; i++) {
+    const u = rnd() * 2 - 1, a = rnd() * Math.PI * 2;
+    const r = Math.sqrt(1 - u * u);
+    const d = new Vector3(r * Math.cos(a), u, r * Math.sin(a));
+    pos.set([center.x + d.x * 260, center.y + d.y * 260, center.z + d.z * 260], i * 3);
+    const b = (0.35 + rnd() * 0.65) * (d.y < -0.1 ? 0.45 : 1);
+    col.set([b * 0.9, b * 0.93, b], i * 3);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(pos, 3));
+  g.setAttribute('color', new BufferAttribute(col, 3));
+  const points = new Points(g, new PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, fog: false, depthWrite: false }));
+  points.frustumCulled = false;
+  points.renderOrder = -2;
+  return points;
+}
+
+const GLOW = {
+  lantern: { size: 3.6, color: 0xffb05a, opacity: 0.8 },
+  torch: { size: 2.8, color: 0xffa04a, opacity: 0.75 },
+  lava: { size: 4.6, color: 0xff7426, opacity: 0.6 },
+};
+
+export function nightAtmosphere(scene, { center, lite, heroPose, images, emitters, particles }) {
+  // The baked island colours already carry the light, so the base light is plain white.
+  scene.add(new AmbientLight(0xffffff, Math.PI));
+  const moonDir = moonDirection(heroPose);
+  // Moonlight comes from the moon's side of the sky but a little towards the viewer, so faces facing us catch it.
+  const lightDir = moonDir.clone().setY(0).applyAxisAngle(new Vector3(0, 1, 0), -1.1).normalize().setY(1.15).normalize();
+  const moon = shadowLight(new DirectionalLight(0x9fb3e6, 0.3 * Math.PI), center, lite, 24);
+  moon.position.copy(center).addScaledVector(lightDir, 45);
+  scene.add(moon, moon.target);
+  scene.fog = new Fog(0x070b12, 50, 115);
+
+  scene.add(stars(center, lite ? 500 : 1100));
+  const moonSprite = new Sprite(new SpriteMaterial({ map: spriteTexture(images.get('environment/moon')), color: 0xb9c3d8, fog: false, depthWrite: false, transparent: true }));
+  moonSprite.position.copy(center).addScaledVector(moonDir, 220);
+  moonSprite.scale.set(15, 15, 1);
+  moonSprite.renderOrder = -1;
+  scene.add(moonSprite);
+  const glowTex = spriteTexture(images.get('particle/glow'));
+  glowTex.magFilter = glowTex.minFilter = LinearFilter; // a soft halo, not pixels
+  const moonHalo = new Sprite(new SpriteMaterial({ map: glowTex, color: 0x6f86c4, opacity: 0.55, blending: AdditiveBlending, fog: false, depthWrite: false, transparent: true }));
+  moonHalo.position.copy(moonSprite.position);
+  moonHalo.scale.set(70, 70, 1);
+  moonHalo.renderOrder = -1;
+  scene.add(moonHalo);
+
+  // Warm halos over each light; neighbouring lava cells share one.
+  const glows = [];
+  const lava = emitters.filter((e) => e[4] === 'lava');
+  const others = emitters.filter((e) => e[4] !== 'lava');
+  const addGlow = (x, y, z, kind) => {
+    const g = GLOW[kind] ?? GLOW.lantern;
+    const s = new Sprite(new SpriteMaterial({ map: glowTex, color: g.color, opacity: g.opacity, blending: AdditiveBlending, depthWrite: false, transparent: true }));
+    s.position.set(x, y, z);
+    s.scale.set(g.size, g.size, 1);
+    s.renderOrder = 4;
+    scene.add(s);
+    glows.push({ sprite: s, base: g.opacity, flicker: 0 });
+  };
+  for (const [x, y, z, , kind] of others) addGlow(x + 0.5, y + (kind === 'torch' ? 0.65 : 0.45), z + 0.5, kind);
+  if (lava.length) {
+    const c = lava.reduce((a, [x, y, z]) => [a[0] + x, a[1] + y, a[2] + z], [0, 0, 0]).map((v) => v / lava.length);
+    addGlow(c[0] + 0.5, c[1] + 0.9, c[2] + 0.5, 'lava');
+  }
+
+  return {
+    variant: 'night',
+    particleDim: 0.45,
+    // Per game tick: torches smoke and flicker, lava spits now and then.
+    tick() {
+      for (const [x, y, z, , kind] of others) {
+        if (kind === 'torch' && Math.random() < 0.08) {
+          particles.spawn('smoke', [x + 0.5, y + 0.7, z + 0.5]);
+          particles.spawn('flame', [x + 0.5, y + 0.7, z + 0.5]);
+        }
+      }
+      for (const [x, y, z] of lava) if (Math.random() < 0.006) particles.spawn('lava', [x + 0.5, y + 1, z + 0.5]);
+      for (const g of glows) {
+        g.flicker += (Math.random() - Math.random()) * Math.random() * Math.random() * 0.1;
+        g.flicker *= 0.9;
+        g.sprite.material.opacity = Math.max(0, g.base * (1 + g.flicker * 1.5));
+      }
+    },
+    update() {},
+  };
+}

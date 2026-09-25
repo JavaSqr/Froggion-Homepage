@@ -18,6 +18,17 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches && 
 const lite = matchMedia('(max-width: 760px), (pointer: coarse)').matches || params.has('lite');
 if (params.has('poster')) document.body.classList.add('poster-mode');
 
+// Scene variant: day or night, from site.config.json, overridable with ?night / ?day for comparison.
+const variant = params.has('night') ? 'night' : params.has('day') ? 'day' : document.body.dataset.variant || 'day';
+if (variant !== document.body.dataset.variant) {
+  document.body.dataset.variant = variant;
+  const suffix = variant === 'night' ? '-night' : '';
+  const img = document.querySelector('.scene-poster img');
+  const src = document.querySelector('.scene-poster source');
+  if (img) img.src = `/poster${suffix}.webp`;
+  if (src) src.srcset = `/poster${suffix}-portrait.webp`;
+}
+
 function afterFirstPaint(fn) {
   const run = () => requestAnimationFrame(() => setTimeout(fn, 0));
   if (document.readyState === 'complete') run();
@@ -27,7 +38,7 @@ function afterFirstPaint(fn) {
 if (layer && !reducedMotion && webglAvailable()) {
   afterFirstPaint(async () => {
     const { startScene } = await import('./scene/index.js');
-    const scene = await startScene({ layer, bots: botsData, lite, debug: params.has('debug') });
+    const scene = await startScene({ layer, bots: botsData, lite, variant, debug: params.has('debug') });
     cards.attachScene(scene);
     document.body.classList.add('scene-live');
     window.__froggion = { scene, cards };
