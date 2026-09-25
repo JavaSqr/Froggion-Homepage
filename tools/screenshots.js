@@ -25,8 +25,8 @@ export const SHOTS = [
   { name: 'card-station', settle: 0, viewport: [1440, 900], url: '/?debug', run: (s) => { s.focusBot('FroggyFarmer', false); s.seek('FroggyFarmer', 200); }, card: 'FroggyFarmer' },
   { name: 'card-mobile', viewport: [390, 844], url: '/', mobile: true, card: 'FroggyMiner' },
   { name: 'en-first-screen', viewport: [1440, 900], url: '/en/' },
-  // prefers-reduced-motion: poster only, the card opens from the bot list.
-  { name: 'reduced-motion-card', viewport: [1440, 900], url: '/', reducedMotion: true, listCard: 'FroggyFarmer' },
+  // Without motion (?still, or reduced motion with motion "system"): poster only, the card opens from the bot list.
+  { name: 'reduced-motion-card', viewport: [1440, 900], url: '/?still', reducedMotion: true, listCard: 'FroggyFarmer' },
   // The rest of the page. `scroll`: a selector scrolled to the top, or a script returning scrollY.
   { name: 'jobs-intro', viewport: [1440, 900], url: '/', scroll: '#jobs-title', offset: -300 },
   { name: 'jobs-slayer', viewport: [1440, 900], url: '/', scroll: '#bot-slayer' },
@@ -35,7 +35,18 @@ export const SHOTS = [
   { name: 'jobs-miner', viewport: [1440, 900], url: '/', scroll: '#bot-miner' },
   { name: 'jobs-farmer', viewport: [1440, 900], url: '/', scroll: '#bot-farmer' },
   { name: 'jobs-mobile-fisherman', viewport: [390, 844], url: '/', mobile: true, scroll: '#bot-fisherman' },
-  { name: 'jobs-reduced-motion', viewport: [1440, 900], url: '/', reducedMotion: true, scroll: '#bot-slayer' },
+  { name: 'jobs-reduced-motion', viewport: [1440, 900], url: '/?still', reducedMotion: true, scroll: '#bot-slayer' },
+  // «Подробнее» on the Fisherman's card: straight flight to him, mid-way and on arrival.
+  { name: 'jump-midway', viewport: [1440, 900], url: '/', settle: 0.7, page: async (p) => {
+    await p.evaluate(() => window.__froggion.cards.open('FroggyFisherman', { pinned: true, source: 'scene' }));
+    await p.click('.bot-card__more');
+  } },
+  { name: 'jump-arrived', viewport: [1440, 900], url: '/', settle: 2.2, page: async (p) => {
+    await p.evaluate(() => window.__froggion.cards.open('FroggyFisherman', { pinned: true, source: 'scene' }));
+    await p.click('.bot-card__more');
+  } },
+  // The island leaves together with the next section.
+  { name: 'stage-leaving', viewport: [1440, 900], url: '/', scroll: '#features', offset: -450 },
   { name: 'features', viewport: [1440, 900], url: '/', scroll: '#features' },
   { name: 'notifications', viewport: [1440, 900], url: '/', scroll: '#notifications', wait: 3500 },
   { name: 'panel', viewport: [1440, 900], url: '/', scroll: '#panel' },
@@ -53,6 +64,8 @@ export const SHOTS = [
   { name: 'small-phone', viewport: [360, 740], url: '/', mobile: true },
   { name: 'en-pricing', viewport: [1440, 900], url: '/en/', scroll: '#pricing' },
   { name: 'legal', viewport: [1440, 900], url: '/offer/', static: true },
+  { name: 'soon', viewport: [1440, 900], url: '/soon/', static: true },
+  { name: 'soon-mobile', viewport: [390, 844], url: '/en/soon/', mobile: true, static: true },
 ];
 
 async function waitForServer(url, tries = 50) {

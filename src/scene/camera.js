@@ -49,6 +49,7 @@ export class CameraRig {
     this.aspect = 1;
     this.path = [];
     this.flight = { s: -1, goal: -1 };
+    this.leap = null;
     this.centered = false;
     this.hero(false);
   }
@@ -114,6 +115,15 @@ export class CameraRig {
     if (instant) { this.flight.s = goal; this.update(0); }
   }
 
+  // Straight to a stop, not through the ones before it: from the current view along one arc.
+  jump(index) {
+    const goal = clamp(index, -1, this.path.length - 1);
+    this.mode = 'path';
+    this.transition = null;
+    this.flight.s = this.flight.goal = goal;
+    this.leap = { from: { pos: this.pos.clone(), target: this.target.clone() }, t: 0 };
+  }
+
   pathPose(s) {
     const x = s + 1;
     const i = clamp(Math.floor(x), 0, Math.max(0, this.path.length - 1));
@@ -148,11 +158,16 @@ export class CameraRig {
 
   update(dt) {
     this.time += dt;
-    // Scrolling moves in steps; the camera follows smoothly.
+    // The camera follows the scroll with a little smoothing (touch scrolling comes in bursts).
     const f = this.flight;
-    f.s += (f.goal - f.s) * (1 - Math.exp(-dt * 4));
+    f.s += (f.goal - f.s) * (1 - Math.exp(-dt * 8));
     if (Math.abs(f.goal - f.s) < 1e-4) f.s = f.goal;
-    const g = this.goal();
+    let g = this.goal();
+    if (this.leap && this.mode === 'path') {
+      this.leap.t = Math.min(1, this.leap.t + dt / 1.6);
+      g = blend(this.leap.from, g, ease(this.leap.t), this.center);
+      if (this.leap.t >= 1) this.leap = null;
+    }
     if (this.transition) {
       this.transition.t = Math.min(1, this.transition.t + dt / 1.4);
       const k = ease(this.transition.t);

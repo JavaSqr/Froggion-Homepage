@@ -9,7 +9,20 @@ const json = (v) => JSON.stringify(v).replace(/</g, '\\u003c');
 
 const JOB_ORDER = ['attack', 'fish', 'mine', 'farm'];
 
-export function renderAll(root) {
+// The site can live in a subfolder (GitHub Pages: BASE_PATH=/repo/). Links and runtime data carry the prefix;
+// images and icons in the HTML keep root paths, Vite prefixes those itself.
+const normalizeBase = (base = '/') => `/${base}/`.replace(/\/+/g, '/');
+const within = (base, p) => base + p.replace(/^\//, '');
+
+// A link from site.config.json; while its key is listed in comingSoon it leads to the stub page.
+function link({ config, home }, key) {
+  if (config.comingSoon?.includes(key)) return `${home}soon/`;
+  const url = key.split('.').reduce((o, k) => o?.[k], config);
+  return key === 'contacts.email' ? `mailto:${url}` : url;
+}
+
+export function renderAll(root, { base = '/' } = {}) {
+  base = normalizeBase(base);
   const config = readJson(root, 'site.config.json');
   const { bots } = readJson(root, 'source/bots.json');
   const out = {};
@@ -17,16 +30,18 @@ export function renderAll(root) {
     const t = readJson(root, `content/${lang.code}.json`);
     const dir = lang.path.replace(/^\/|\/$/g, '');
     const file = (p) => [dir, p, 'index.html'].filter(Boolean).join('/');
-    const ctx = { t, lang, config, bots };
+    const ctx = { t, lang, config, bots, base, home: within(base, lang.path) };
     out[file('')] = renderPage(ctx);
     out[file('offer')] = renderLegal(ctx, 'offer');
     out[file('privacy')] = renderLegal(ctx, 'privacy');
+    out[file('soon')] = renderSoon(ctx);
   }
   return out;
 }
 
 // Extra files for the built site: sitemap, robots, web manifest.
-export function renderExtras(root) {
+export function renderExtras(root, { base = '/' } = {}) {
+  base = normalizeBase(base);
   const config = readJson(root, 'site.config.json');
   const alternates = (p) => config.languages.map((l) => `<xhtml:link rel="alternate" hreflang="${l.hreflang}" href="${config.siteUrl}${l.path}${p}"/>`).join('');
   const urls = ['', 'offer/', 'privacy/'].flatMap((p) => config.languages.map((l) => `  <url><loc>${config.siteUrl}${l.path}${p}</loc>${alternates(p)}</url>`));
@@ -35,9 +50,9 @@ export function renderExtras(root) {
     'sitemap.xml': `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join('\n')}\n</urlset>\n`,
     'robots.txt': `User-agent: *\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`,
     'site.webmanifest': JSON.stringify({
-      name: 'Froggion', short_name: 'Froggion', description: ru.meta.description, start_url: '/', display: 'standalone',
+      name: 'Froggion', short_name: 'Froggion', description: ru.meta.description, start_url: base, display: 'standalone',
       background_color: '#0b0f0c', theme_color: '#0b0f0c',
-      icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
+      icons: [{ src: `${base}icon-192.png`, sizes: '192x192', type: 'image/png' }, { src: `${base}icon-512.png`, sizes: '512x512', type: 'image/png' }],
     }, null, 2),
   };
 }
@@ -47,7 +62,7 @@ const ogImage = ({ lang, config }) => `${config.siteUrl}/${lang.path === '/' ? '
 
 const posterName = (config, portrait) => `/poster${config.scene?.variant === 'night' ? '-night' : ''}${portrait ? '-portrait' : ''}.webp`;
 
-function head({ t, lang, config }, { title = t.meta.title, description = t.meta.description, pagePath = '', home = true } = {}) {
+function head({ t, lang, config, base }, { title = t.meta.title, description = t.meta.description, pagePath = '', home = true, index = true } = {}) {
   const url = config.siteUrl + lang.path + pagePath;
   const alternates = config.languages
     .map((l) => `<link rel="alternate" hreflang="${l.hreflang}" href="${config.siteUrl}${l.path}${pagePath}">`)
@@ -61,7 +76,8 @@ function head({ t, lang, config }, { title = t.meta.title, description = t.meta.
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>${esc(title)}</title>
-    <meta name="description" content="${esc(description)}">
+    <meta name="description" content="${esc(description)}">${index ? '' : `
+    <meta name="robots" content="noindex">`}
     <link rel="canonical" href="${url}">
     ${alternates}
     <meta property="og:type" content="website">
@@ -78,19 +94,20 @@ function head({ t, lang, config }, { title = t.meta.title, description = t.meta.
     <meta name="theme-color" content="#0b0f0c">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">${preload}
+    <link rel="manifest" href="${base}site.webmanifest">${preload}
     <link rel="stylesheet" href="/src/styles/main.css">
     <script type="module" src="/src/main.js"></script>
   </head>`;
 }
 
-function header({ t, lang, config }, prefix = '') {
+function header(ctx, prefix = '') {
+  const { t, lang, config } = ctx;
   const nav = [['bots', '#bots'], ['features', '#features'], ['notifications', '#notifications'], ['panel', '#panel'], ['pricing', '#pricing'], ['partners', '#partners'], ['faq', '#faq']];
   const langs = config.languages.map((l) => (l.code === lang.code
     ? `<span class="lang-switch__item is-current" aria-current="true">${l.code.toUpperCase()}</span>`
-    : `<a class="lang-switch__item" href="${l.path}" hreflang="${l.hreflang}" lang="${l.hreflang}">${l.code.toUpperCase()}</a>`)).join('');
+    : `<a class="lang-switch__item" href="${within(ctx.base, l.path)}" hreflang="${l.hreflang}" lang="${l.hreflang}">${l.code.toUpperCase()}</a>`)).join('');
   return `<header class="site-header">
-      <a class="logo" href="${lang.path}" aria-label="Froggion">
+      <a class="logo" href="${ctx.home}" aria-label="Froggion">
         <img src="/brand/logo.png" width="39" height="40" alt="">
         <span>Froggion</span>
       </a>
@@ -100,18 +117,18 @@ function header({ t, lang, config }, prefix = '') {
       </nav>
       <div class="header-actions">
         <div class="lang-switch" role="group" aria-label="${esc(t.nav.language)}">${langs}</div>
-        <a class="btn btn--ghost btn--small" href="${esc(config.panelUrl)}">${esc(t.nav.login)}</a>
+        <a class="btn btn--ghost btn--small" href="${esc(link(ctx, 'panelUrl'))}">${esc(t.nav.login)}</a>
       </div>
     </header>`;
 }
 
-function botsData({ t, bots }) {
+function botsData({ t, bots, base }) {
   return bots.map((b) => ({
     nick: b.nick,
     slug: b.slug,
     job: b.job,
     model: b.model,
-    skin: `/skins/${path.basename(b.skin)}`,
+    skin: `${base}skins/${path.basename(b.skin)}`,
     download: `froggion-${b.slug}-skin.png`,
     name: t.bots[b.nick].name,
     description: t.bots[b.nick].description,
@@ -119,20 +136,25 @@ function botsData({ t, bots }) {
   }));
 }
 
-function hero({ t, config, bots }) {
-  const list = botsData({ t, bots });
-  return `<section class="hero" id="top" aria-labelledby="hero-title">
-      <div class="scene-layer" data-scene aria-label="${esc(t.scene.label)}" role="img">
+// The island stays on screen behind the first screen and the bot blocks, then leaves with the page.
+function sceneLayer({ t, config }) {
+  return `<div class="scene-layer" data-scene aria-label="${esc(t.scene.label)}" role="img">
         <picture class="scene-poster">
           <source srcset="${posterName(config, true)}" media="(max-aspect-ratio: 1/1)">
           <img src="${posterName(config, false)}" alt="${esc(t.scene.posterAlt)}" fetchpriority="high" decoding="async">
         </picture>
-      </div>
+      </div>`;
+}
+
+function hero(ctx) {
+  const { t, config, bots } = ctx;
+  const list = botsData(ctx);
+  return `<section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero__copy">
         <h1 id="hero-title">${esc(t.hero.title)}</h1>
         <p class="hero__subtitle">${esc(t.hero.subtitle)}</p>
         <div class="hero__actions">
-          <a class="btn btn--primary" href="${esc(config.panelUrl)}">${esc(t.hero.cta)}</a>
+          <a class="btn btn--primary" href="${esc(link(ctx, 'panelUrl'))}">${esc(t.hero.cta)}</a>
           <a class="btn btn--ghost" href="#pricing">${esc(t.hero.pricing)}</a>
         </div>
         <p class="hero__note">${esc(t.hero.ctaNote)}</p>
@@ -187,6 +209,7 @@ const ICONS = {
   schedule: ['..#....#....', '.##########.', '.#........#.', '.##########.', '.#........#.', '.#.##.##..#.', '.#........#.', '.#.##.##..#.', '.#........#.', '.#.##.....#.', '.#........#.', '.##########.'],
   danger: ['.##########.', '.#........#.', '.#...##...#.', '.#...##...#.', '.#...##...#.', '.#...##...#.', '.#........#.', '..#..##..#..', '..#..##..#..', '...#....#...', '....#..#....', '.....##.....'],
   auction: ['....####....', '..##....##..', '..#.####.#..', '..##....##..', '..#.####.#..', '..##....##..', '..#.####.#..', '..##....##..', '..#.####.#..', '..##....##..', '...######...', '............'],
+  pickaxe: ['...######...', '.##......##.', '#....##....#', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '............'],
   scripts: ['####........', '#..#........', '####........', '.#..........', '.#..####....', '.###...#....', '....####....', '.....#......', '.....#..####', '.....###...#', '........####', '............'],
 };
 
@@ -266,7 +289,8 @@ function notifications({ t }) {
     </section>`;
 }
 
-function panel({ t, config }) {
+function panel(ctx) {
+  const { t } = ctx;
   const p = t.panel;
   return `<section class="section panel" id="panel" aria-labelledby="panel-title">
       <div class="section-head">
@@ -279,11 +303,12 @@ function panel({ t, config }) {
           <figcaption>${esc(s.caption)}</figcaption>
         </figure>`).join('\n        ')}
       </div>
-      <p class="section-cta"><a class="btn btn--ghost" href="${esc(config.panelUrl)}">${esc(p.cta)}</a></p>
+      <p class="section-cta"><a class="btn btn--ghost" href="${esc(link(ctx, 'panelUrl'))}">${esc(p.cta)}</a></p>
     </section>`;
 }
 
-function pricing({ t, lang, config }) {
+function pricing(ctx) {
+  const { t, lang, config } = ctx;
   const p = t.pricing;
   const cfg = config.pricing;
   const money = (v) => formatPrice(v, cfg.currency, lang.code);
@@ -349,7 +374,7 @@ function pricing({ t, lang, config }) {
             <div><dt>${esc(p.calc.save)}</dt><dd data-out="save">${money(0)}</dd></div>
             <div class="calc__total"><dt>${esc(p.calc.total)}</dt><dd data-out="total">${money(pricePerBot(cfg, 1, cfg.monthDays))}</dd></div>
           </dl>
-          <a class="btn btn--primary" href="${esc(config.panelUrl)}">${esc(p.calc.cta)}</a>
+          <a class="btn btn--primary" href="${esc(link(ctx, 'panelUrl'))}">${esc(p.calc.cta)}</a>
           <noscript><p class="note">${esc(p.calc.noscript)}</p></noscript>
           <script type="application/json" data-calc-config>${json(calcData)}</script>
         </form>
@@ -357,7 +382,8 @@ function pricing({ t, lang, config }) {
     </section>`;
 }
 
-function partners({ t, config }) {
+function partners(ctx) {
+  const { t } = ctx;
   const p = t.partners;
   return `<section class="section partners" id="partners" aria-labelledby="partners-title">
       <div class="section-head">
@@ -367,7 +393,7 @@ function partners({ t, config }) {
       <ul class="partner-grid">
         ${p.points.map((pt) => `<li class="pixel-box"><h3>${esc(pt.title)}</h3><p>${esc(pt.text)}</p></li>`).join('\n        ')}
       </ul>
-      <p class="section-cta"><a class="btn btn--primary" href="${esc(config.partnersUrl)}">${esc(p.cta)}</a></p>
+      <p class="section-cta"><a class="btn btn--primary" href="${esc(link(ctx, 'partnersUrl'))}">${esc(p.cta)}</a></p>
     </section>`;
 }
 
@@ -380,37 +406,39 @@ function faq({ t }) {
     </section>`;
 }
 
-function finalCta({ t, config }) {
+function finalCta(ctx) {
+  const { t } = ctx;
   return `<section class="final-cta" aria-labelledby="cta-title">
       <h2 id="cta-title">${esc(t.cta.title)}</h2>
       <p>${esc(t.cta.text)}</p>
-      <a class="btn btn--primary" href="${esc(config.panelUrl)}">${esc(t.cta.button)}</a>
+      <a class="btn btn--primary" href="${esc(link(ctx, 'panelUrl'))}">${esc(t.cta.button)}</a>
     </section>`;
 }
 
-function footer({ t, lang, config }) {
+function footer(ctx) {
+  const { t, lang, config } = ctx;
   const f = t.footer;
   const c = config.contacts;
-  const langs = config.languages.map((l) => `<a href="${l.path}" hreflang="${l.hreflang}" lang="${l.hreflang}"${l.code === lang.code ? ' aria-current="true"' : ''}>${l.code.toUpperCase()}</a>`).join(' · ');
+  const langs = config.languages.map((l) => `<a href="${within(ctx.base, l.path)}" hreflang="${l.hreflang}" lang="${l.hreflang}"${l.code === lang.code ? ' aria-current="true"' : ''}>${l.code.toUpperCase()}</a>`).join(' · ');
   return `<footer class="site-footer">
       <div class="site-footer__grid">
         <div>
-          <a class="logo" href="${lang.path}" aria-label="Froggion"><img src="/brand/logo.png" width="39" height="40" alt=""><span>Froggion</span></a>
+          <a class="logo" href="${ctx.home}" aria-label="Froggion"><img src="/brand/logo.png" width="39" height="40" alt=""><span>Froggion</span></a>
           <p class="site-footer__langs">${langs}</p>
         </div>
         <div>
           <h2>${esc(f.contacts)}</h2>
           <ul>
-            <li><a href="${esc(c.telegram)}">${esc(f.telegram)}</a></li>
-            <li><a href="${esc(c.vk)}">${esc(f.vk)}</a></li>
-            <li><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></li>
+            <li><a href="${esc(link(ctx, 'contacts.telegram'))}">${esc(f.telegram)}</a></li>
+            <li><a href="${esc(link(ctx, 'contacts.vk'))}">${esc(f.vk)}</a></li>
+            <li><a href="${esc(link(ctx, 'contacts.email'))}">${esc(c.email)}</a></li>
           </ul>
         </div>
         <div>
           <h2>${esc(f.docs)}</h2>
           <ul>
-            <li><a href="${lang.path}offer/">${esc(f.offer)}</a></li>
-            <li><a href="${lang.path}privacy/">${esc(f.privacy)}</a></li>
+            <li><a href="${ctx.home}offer/">${esc(f.offer)}</a></li>
+            <li><a href="${ctx.home}privacy/">${esc(f.privacy)}</a></li>
           </ul>
         </div>
       </div>
@@ -435,14 +463,17 @@ function structuredData({ t, lang, config }) {
 export function renderPage(ctx) {
   const { lang } = ctx;
   return `<!doctype html>
-<html lang="${lang.code}">
+<html lang="${lang.code}" data-motion="${ctx.config.motion ?? 'system'}">
   ${head(ctx)}
   <body data-variant="${ctx.config.scene?.variant ?? 'day'}">
     <a class="skip-link" href="#main">${esc(ctx.t.nav.skip)}</a>
     ${header(ctx)}
     <main id="main">
+    <div class="stage">
+    ${sceneLayer(ctx)}
     ${hero(ctx)}
     ${jobs(ctx)}
+    </div>
     ${features(ctx)}
     ${notifications(ctx)}
     ${panel(ctx)}
@@ -463,15 +494,38 @@ export function renderLegal(ctx, kind) {
   const { t, lang } = ctx;
   const title = `${t.legal[kind]} — Froggion`;
   return `<!doctype html>
-<html lang="${lang.code}">
+<html lang="${lang.code}" data-motion="${ctx.config.motion ?? 'system'}">
   ${head(ctx, { title, description: t.legal.stub, pagePath: `${kind}/`, home: false })}
   <body class="legal-page">
     <a class="skip-link" href="#main">${esc(t.nav.skip)}</a>
-    ${header(ctx, lang.path)}
+    ${header(ctx, ctx.home)}
     <main id="main" class="legal">
       <h1>${esc(t.legal[kind])}</h1>
       <p>${esc(t.legal.stub)}</p>
-      <p><a class="btn btn--ghost" href="${lang.path}">${esc(t.legal.back)}</a></p>
+      <p><a class="btn btn--ghost" href="${ctx.home}">${esc(t.legal.back)}</a></p>
+    </main>
+    ${footer(ctx)}
+  </body>
+</html>
+`;
+}
+
+// Where links lead while the thing behind them is not live yet (site.config.json → comingSoon).
+export function renderSoon(ctx) {
+  const { t, lang, config } = ctx;
+  return `<!doctype html>
+<html lang="${lang.code}" data-motion="${config.motion ?? 'system'}">
+  ${head(ctx, { title: `${t.soon.title} — Froggion`, description: t.soon.meta, pagePath: 'soon/', home: false, index: false })}
+  <body class="soon-page">
+    <a class="skip-link" href="#main">${esc(t.nav.skip)}</a>
+    ${header(ctx, ctx.home)}
+    <main id="main" class="soon" style="--poster: url('${posterName(config, false)}')">
+      <div class="soon__card pixel-box">
+        ${pixelIcon('pickaxe', 48)}
+        <h1>${esc(t.soon.title)}</h1>
+        <p>${esc(t.soon.text)}</p>
+        <a class="btn btn--primary" href="${ctx.home}">${esc(t.soon.home)}</a>
+      </div>
     </main>
     ${footer(ctx)}
   </body>

@@ -337,6 +337,17 @@ T['block/lava_still'] = () => strip(Array.from({ length: 16 }, (_, i) => {
   });
 }));
 
+// Lava sides: the same molten colours streaming down, one pixel per frame.
+T['block/lava_flow'] = () => strip(Array.from({ length: 16 }, (_, i) => {
+  const base = ['#b8410c', '#cf5a12', '#e0741c', '#ee9227', '#f8b23c', '#ffd064'].map((h) => hex(h));
+  const n1 = valueNoise(303, 4), n2 = valueNoise(304, 8);
+  return new Tex().each((x, y) => {
+    const yy = y - i;
+    const v = n1(x, yy) * 0.5 + n2(x, yy) * 0.2 + 0.3 * (0.5 + 0.5 * Math.sin(x * 1.25 + n2(x, yy) * 5));
+    return base[Math.max(0, Math.min(base.length - 1, Math.floor(v * base.length * 1.05)))];
+  });
+}));
+
 // Crops: sprouts that grow into golden wheat with dark heads.
 for (let stage = 0; stage < 8; stage++) {
   T[`block/wheat_stage${stage}`] = () => {
@@ -439,16 +450,25 @@ for (let s = 0; s < 10; s++) {
 // cap sides 7..11 × 0..2, cap top 7..11 × 3..7, chain 13..15 × 0..6.
 T['block/lantern'] = () => {
   const t = new Tex();
-  const iron = hex('#2c2c31'), iron2 = hex('#3d3d44'), hot = hex('#fff1b8'), glow = hex('#ffd27a'), warm = hex('#f5a84a');
-  for (let y = 0; y < 7; y++) for (let x = 0; x < 6; x++) {
-    const edge = x === 0 || x === 5 || y === 0 || y === 6;
-    const bar = y === 3 && (x === 0 || x === 5);
-    t.set(x, y, edge || bar ? (y === 0 ? iron2 : iron) : (y >= 2 && y <= 4 && x >= 2 && x <= 3 ? hot : y === 1 || y === 5 ? warm : glow));
-  }
-  for (let y = 9; y < 15; y++) for (let x = 0; x < 6; x++) t.set(x, y, x === 0 || x === 5 || y === 9 || y === 14 ? iron : iron2);
-  for (let x = 7; x < 11; x++) { t.set(x, 0, iron2); t.set(x, 1, iron); }
-  for (let y = 3; y < 7; y++) for (let x = 7; x < 11; x++) t.set(x, y, (x + y) % 3 === 0 ? iron2 : iron);
-  for (let y = 0; y < 6; y++) { t.set(13, y, y % 2 ? iron : iron2); t.set(14, y, y % 2 ? iron2 : iron); }
+  const iron = hex('#26262b'), iron2 = hex('#3a3a42'), rim = hex('#4d4d57');
+  // Sides (6×7): iron rims top and bottom, bars at the edges, a flame behind the glass.
+  const pane = [
+    'KHHHHK',
+    'KodddK',
+    'KdyydK',
+    'KywwyK',
+    'KywwyK',
+    'KoyyoK',
+    'KHHHHK',
+  ];
+  const c = { K: iron, H: rim, o: hex('#b8561a'), d: hex('#e0822a'), y: hex('#ffc24a'), w: hex('#fff2c0') };
+  pane.forEach((row, y) => [...row].forEach((k, x) => t.set(x, y, c[k])));
+  // Top and bottom plates (6×6).
+  for (let y = 9; y < 15; y++) for (let x = 0; x < 6; x++) t.set(x, y, x === 0 || x === 5 || y === 9 || y === 14 ? iron : (x + y) % 2 ? iron2 : rim);
+  // Cap and chain.
+  for (let x = 7; x < 11; x++) { t.set(x, 0, rim); t.set(x, 1, iron); }
+  for (let y = 3; y < 7; y++) for (let x = 7; x < 11; x++) t.set(x, y, (x + y) % 3 === 0 ? rim : iron2);
+  for (let y = 0; y < 6; y++) { t.set(13, y, y % 2 ? iron : rim); t.set(14, y, y % 2 ? rim : iron); }
   return t;
 };
 // Torch: stick in columns 7..8, flame on top (rows 6..8), vanilla-style UV rows.

@@ -2,6 +2,8 @@
 // Anchored to a screen point above the bot's head; without a live scene, to the list button.
 const HIDE_DELAY = 300;
 const MARGIN = 12;
+// How fast the card catches up with the bot, per second: it glides instead of shaking with every step.
+const FOLLOW = 16;
 
 export function createCards({ bots, root }) {
   const card = root?.querySelector('.bot-card');
@@ -25,6 +27,10 @@ export function createCards({ bots, root }) {
   let hideTimer = 0;
   let trigger = null;
   let source = 'scene';
+  let goal = null;
+  let shown = null;
+  let glideFrame = 0;
+  let lastGlide = 0;
 
   function fill(nick) {
     const b = byNick.get(nick);
@@ -49,7 +55,7 @@ export function createCards({ bots, root }) {
     source = opts.source ?? 'scene';
     if (opts.pinned) pinned = true;
     card.hidden = false;
-    position();
+    position(true);
     syncHighlight();
   }
 
@@ -58,6 +64,7 @@ export function createCards({ bots, root }) {
     if (!current) return;
     current = null;
     pinned = false;
+    shown = goal = null;
     card.hidden = true;
     syncHighlight();
     if (restoreFocus && trigger) trigger.focus();
@@ -83,7 +90,25 @@ export function createCards({ bots, root }) {
     return { x: r.left + r.width / 2, y: r.bottom + 12, below: true };
   }
 
-  function position() {
+  // Device-pixel steps: smooth on dense screens, no blurry half pixels.
+  function place() {
+    const dpr = window.devicePixelRatio || 1;
+    card.style.transform = `translate3d(${Math.round(shown.x * dpr) / dpr}px, ${Math.round(shown.y * dpr) / dpr}px, 0)`;
+  }
+
+  function glide(now) {
+    glideFrame = 0;
+    if (!current || !goal || !shown) return;
+    const dt = lastGlide ? Math.min(0.05, Math.max(0, (now - lastGlide) / 1000)) : 1 / 60;
+    lastGlide = now;
+    const k = 1 - Math.exp(-dt * FOLLOW);
+    shown.x += (goal.x - shown.x) * k;
+    shown.y += (goal.y - shown.y) * k;
+    place();
+    if (Math.abs(goal.x - shown.x) > 0.05 || Math.abs(goal.y - shown.y) > 0.05) glideFrame = requestAnimationFrame(glide);
+  }
+
+  function position(snap = false) {
     if (!current) return;
     const a = anchorPoint();
     if (!a) return;
@@ -94,7 +119,16 @@ export function createCards({ bots, root }) {
     let y = a.below ? a.y : a.y - h - 10;
     x = Math.max(MARGIN, Math.min(vw - w - MARGIN, x));
     y = Math.max(header + MARGIN, Math.min(vh - h - MARGIN, y));
-    card.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    goal = { x, y };
+    if (snap || !shown) {
+      shown = { x, y };
+      place();
+      return;
+    }
+    if (!glideFrame) {
+      lastGlide = 0;
+      glideFrame = requestAnimationFrame(glide);
+    }
   }
 
   // Card hover keeps it open while the cursor travels from the bot to the buttons.
@@ -121,10 +155,10 @@ export function createCards({ bots, root }) {
     if (card.contains(t) || listButtons.includes(t) || (scene && t === scene.canvas)) return;
     close();
   });
-  addEventListener('resize', position);
+  addEventListener('resize', () => position(true));
   addEventListener('scroll', () => {
     if (current && window.scrollY > window.innerHeight * 0.6) close();
-    else position();
+    else position(true);
   }, { passive: true });
 
   function attachScene(s) {
@@ -152,7 +186,7 @@ export function createCards({ bots, root }) {
       const nick = s.pick(e.clientX, e.clientY);
       if (nick) { trigger = null; open(nick, { pinned: true, source: 'scene' }); } else close();
     });
-    s.onFrame(position);
+    s.onFrame(() => position());
   }
 
   return { attachScene, open, close, get current() { return current; }, get pinned() { return pinned; } };

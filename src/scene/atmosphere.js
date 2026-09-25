@@ -26,7 +26,7 @@ export function dayAtmosphere(scene, { center, lite }) {
   sun.position.copy(center).add(new Vector3(-18, 30, 12));
   scene.add(sun, sun.target);
   scene.fog = new Fog(0x0b0f0c, 55, 110);
-  return { variant: 'day', tick() {}, update() {}, entityLight: null, particleDim: 0.8 };
+  return { variant: 'day', tick() {}, update() {}, particleDim: 0.8 };
 }
 
 // Direction in the upper right of the first-screen view, for the moon.
@@ -59,13 +59,17 @@ function stars(center, count) {
   return points;
 }
 
+// Glows over the lights: a wide halo and a bright core, added over the picture without depth test,
+// so no block cuts them into flat shapes. Blocks between the camera and a light fade its glow
+// (a few rays through the island's cells), and a glow fades when the camera comes close.
 const GLOW = {
-  lantern: { size: 3.6, color: 0xffb05a, opacity: 0.8 },
-  torch: { size: 2.8, color: 0xffa04a, opacity: 0.75 },
-  lava: { size: 4.6, color: 0xff7426, opacity: 0.6 },
+  lantern: { size: 3.2, core: 0.9, color: 0xffb05a, opacity: 0.5, y: 0.3 },
+  torch: { size: 2.4, core: 0.6, color: 0xffa04a, opacity: 0.45, y: 0.72 },
+  lava: { size: 4.2, core: 0, color: 0xff7426, opacity: 0.4, y: 0.9 },
 };
+const smoothstep = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-export function nightAtmosphere(scene, { center, lite, heroPose, images, emitters, particles }) {
+export function nightAtmosphere(scene, { center, lite, heroPose, images, emitters, particles, occludes }) {
   // The baked island colours already carry the light, so the base light is plain white.
   scene.add(new AmbientLight(0xffffff, Math.PI));
   const moonDir = moonDirection(heroPose);
@@ -90,25 +94,34 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
   moonHalo.renderOrder = -1;
   scene.add(moonHalo);
 
-  // Warm halos over each light; neighbouring lava cells share one.
   const glows = [];
   const lava = emitters.filter((e) => e[4] === 'lava');
   const others = emitters.filter((e) => e[4] !== 'lava');
+  const sprite = (size, color) => {
+    const s = new Sprite(new SpriteMaterial({ map: glowTex, color, blending: AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, fog: false }));
+    s.scale.set(size, size, 1);
+    s.renderOrder = 10;
+    scene.add(s);
+    return s;
+  };
   const addGlow = (x, y, z, kind) => {
     const g = GLOW[kind] ?? GLOW.lantern;
-    const s = new Sprite(new SpriteMaterial({ map: glowTex, color: g.color, opacity: g.opacity, blending: AdditiveBlending, depthWrite: false, transparent: true }));
-    s.position.set(x, y, z);
-    s.scale.set(g.size, g.size, 1);
-    s.renderOrder = 4;
-    scene.add(s);
-    glows.push({ sprite: s, base: g.opacity, flicker: 0 });
+    const pos = new Vector3(x, y, z);
+    const halo = sprite(g.size, g.color);
+    const core = g.core ? sprite(g.core, 0xffe3a8) : null;
+    halo.position.copy(pos);
+    core?.position.copy(pos);
+    glows.push({ pos, halo, core, base: g.opacity, flicker: 0, vis: 0 });
   };
-  for (const [x, y, z, , kind] of others) addGlow(x + 0.5, y + (kind === 'torch' ? 0.65 : 0.45), z + 0.5, kind);
+  for (const [x, y, z, , kind] of others) addGlow(x + 0.5, y + (GLOW[kind] ?? GLOW.lantern).y, z + 0.5, kind);
+  // Neighbouring lava cells share one glow.
   if (lava.length) {
     const c = lava.reduce((a, [x, y, z]) => [a[0] + x, a[1] + y, a[2] + z], [0, 0, 0]).map((v) => v / lava.length);
-    addGlow(c[0] + 0.5, c[1] + 0.9, c[2] + 0.5, 'lava');
+    addGlow(c[0] + 0.5, c[1] + GLOW.lava.y, c[2] + 0.5, 'lava');
   }
 
+  const right = new Vector3(), up = new Vector3(), probe = new Vector3();
+  let frame = 0;
   return {
     variant: 'night',
     particleDim: 0.45,
@@ -124,9 +137,32 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
       for (const g of glows) {
         g.flicker += (Math.random() - Math.random()) * Math.random() * Math.random() * 0.1;
         g.flicker *= 0.9;
-        g.sprite.material.opacity = Math.max(0, g.base * (1 + g.flicker * 1.5));
       }
     },
-    update() {},
+    // Per frame, after the camera moved: how much of each light is in sight.
+    update(camera, dt) {
+      const check = !occludes || dt === 0 || frame++ % 2 === 0;
+      camera.updateMatrixWorld();
+      right.setFromMatrixColumn(camera.matrixWorld, 0);
+      up.setFromMatrixColumn(camera.matrixWorld, 1);
+      const k = dt === 0 ? 1 : 1 - Math.exp(-dt * 10);
+      for (const g of glows) {
+        if (check && occludes) {
+          let seen = 0;
+          for (const [a, b] of [[0, 0], [0.3, 0], [-0.3, 0], [0, 0.3], [0, -0.3]]) {
+            probe.copy(g.pos).addScaledVector(right, a).addScaledVector(up, b);
+            if (!occludes(camera.position, probe)) seen++;
+          }
+          g.target = seen / 5;
+        }
+        g.vis = g.seen ? g.vis + (g.target - g.vis) * k : g.target ?? 1;
+        g.seen = true;
+        const near = smoothstep(0.8, 3.5, camera.position.distanceTo(g.pos));
+        const o = Math.max(0, g.base * g.vis * near * (1 + g.flicker * 1.5));
+        g.halo.material.opacity = o;
+        g.halo.visible = o > 0.003;
+        if (g.core) { g.core.material.opacity = Math.min(1, o * 1.6); g.core.visible = g.halo.visible; }
+      }
+    },
   };
 }

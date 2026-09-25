@@ -13,9 +13,11 @@ import { modelFor } from './blocks.js';
 import { CameraRig } from './camera.js';
 import { dayAtmosphere, nightAtmosphere } from './atmosphere.js';
 import { nightLightmap } from './light.js';
+import { NameTags } from './nametags.js';
 
 ColorManagement.enabled = false;
 
+const DATA = `${import.meta.env.BASE_URL}data/`;
 const fetchJson = (u) => fetch(versioned(u)).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
 
 function pixelTexture(image) {
@@ -32,8 +34,8 @@ function pixelTexture(image) {
 export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day', visibleWith = [layer] }) {
   const night = variant === 'night';
   const [island, data, nightData] = await Promise.all([
-    fetchJson('/data/island.json'), fetchJson('/data/scene.json'),
-    night ? fetchJson('/data/night.json') : Promise.resolve({ blocks: [] }),
+    fetchJson(`${DATA}island.json`), fetchJson(`${DATA}scene.json`),
+    night ? fetchJson(`${DATA}night.json`) : Promise.resolve({ blocks: [] }),
   ]);
   const decoded = decodeScene(data);
   const nightStates = nightData.blocks.map((b) => b[3]);
@@ -65,8 +67,6 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     Promise.all(meta.map(async (m) => [m.nick, await loadImage(m.skin)])).then((e) => new Map(e)),
   ]);
   const images = new Map([...blockImages, ...otherImages]);
-  // Name tags are drawn into canvases, so the font has to be ready first.
-  await document.fonts?.load('700 54px Handjet').catch(() => {});
 
   const atlas = buildAtlas(blockImages);
   const materials = createMaterials(atlas, images);
@@ -101,12 +101,23 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     const m = view.modelAt(Math.floor(x), Math.floor(y), Math.floor(z));
     return !!(m && ((m.kind === 'fluid' && m.fluid === 'water') || m.water));
   };
+  // Whether a full block (not glass) stands between two points: fades name tags and light glows.
+  const occludes = (from, to) => {
+    const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
+    const len = Math.hypot(dx, dy, dz);
+    for (let t = 0.5; t < len - 0.7; t += 0.25) {
+      const k = t / len;
+      const m = view.modelAt(Math.floor(from.x + dx * k), Math.floor(from.y + dy * k), Math.floor(from.z + dz * k));
+      if (m && m.kind === 'cube' && !m.cullSame) return true;
+    }
+    return false;
+  };
   const particleImages = new Map([...otherImages].filter(([n]) => n.startsWith('particle/') || breakTextures.has(n)));
   for (const t of breakTextures) if (blockImages.has(t)) particleImages.set(t, blockImages.get(t));
   const particles = new Particles({ images: particleImages, max: lite ? 400 : 1500, isSolid: solidAt, isWater: waterAt });
   scene.add(particles.points);
   const atmosphere = night
-    ? nightAtmosphere(scene, { center, lite, heroPose: rig.heroPose(0), images, emitters: view.emitters, particles })
+    ? nightAtmosphere(scene, { center, lite, heroPose: rig.heroPose(0), images, emitters: view.emitters, particles, occludes })
     : dayAtmosphere(scene, { center, lite });
   particles.dim = atmosphere.particleDim;
 
@@ -117,6 +128,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     destroy: Array.from({ length: 10 }, (_, i) => pixelTexture(images.get(`block/destroy_stage_${i}`))),
   };
   const world = new World({ scene, island: view, decoded, meta, assets, particles, items: new ItemFactory(images), lite, lit: night });
+  const tags = new NameTags(layer, world.bots, occludes);
 
   let width = 0, height = 0;
   const resize = () => {
@@ -162,7 +174,8 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     raf = requestAnimationFrame(frame);
     if (frameInterval && now - lastRender < frameInterval - 2) return;
     lastRender = now;
-    const dt = Math.min(0.1, (now - last) / 1000 || 0);
+    // rAF time can be a little older than the moment the loop was started.
+    const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
     step(dt);
     draw();
@@ -173,13 +186,20 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     pAcc += dt * 20;
     while (pAcc >= 1) { atmosphere.tick(); particles.tick(); pAcc -= 1; }
     rig.update(dt);
+    atmosphere.update(camera, dt);
   }
   function draw() {
     world.render(camera);
     particles.render(pAcc);
     view.update(clock);
     renderer.render(scene, camera);
+    tags.update(camera, width, height);
     for (const fn of listeners) fn();
+  }
+  // A frame for the current view at once, glows included (stills and jumps while paused).
+  function still() {
+    atmosphere.update(camera, 0);
+    draw();
   }
   function setRunning(on) {
     if (on === running) return;
@@ -210,23 +230,24 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     anchor,
     highlight,
     onFrame(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    focusBot(nick, animate = true) { rig.focus(nick, animate); draw(); },
-    seek(nick, tick) { world.seek(nick, tick); draw(); },
-    heroView(animate = true) { rig.hero(animate); draw(); },
+    focusBot(nick, animate = true) { rig.focus(nick, animate); still(); },
+    seek(nick, tick) { world.seek(nick, tick); still(); },
+    heroView(animate = true) { rig.hero(animate); still(); },
     // Scroll flight: the stops in order, then progress along them (-1 = first screen).
     setPath(nicks) { rig.setPath(nicks); },
-    fly(s, instant = false) { rig.fly(s, instant); if (instant && !running) draw(); },
+    fly(s, instant = false) { rig.fly(s, instant); if (instant && !running) still(); },
+    jump(index) { rig.jump(index); },
     // Stills of the stations are framed in the middle, without the first screen's shift.
-    centerView(on = true) { rig.centered = on; rig.resize(width, height); draw(); },
+    centerView(on = true) { rig.centered = on; rig.resize(width, height); still(); },
     // Runs the simulation for n seconds without waiting for frames (screenshots).
     settle(seconds) {
       const steps = Math.round(seconds * 30);
       for (let i = 0; i < steps; i++) step(1 / 30);
-      draw();
+      still();
     },
     // Stops the clock (stills and tests); the page's own pausing no longer restarts it.
     freeze(on = true) { frozen = on; update(); },
   };
-  if (debug) Object.assign(api, { world, rig, renderer, scene, camera });
+  if (debug) Object.assign(api, { world, rig, renderer, scene, camera, atmosphere, tags });
   return api;
 }

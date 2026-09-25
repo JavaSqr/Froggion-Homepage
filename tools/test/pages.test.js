@@ -34,7 +34,7 @@ test('pages render every text, with SEO tags', () => {
     const dir = lang.path.replace(/^\/|\/$/g, '');
     const home = pages[[dir, 'index.html'].filter(Boolean).join('/')];
     assert.ok(home, `home page for ${lang.code}`);
-    assert.match(home, new RegExp(`<html lang="${lang.code}">`));
+    assert.match(home, new RegExp(`<html lang="${lang.code}"[ >]`));
     assert.match(home, new RegExp(`<link rel="canonical" href="${config.siteUrl}${lang.path}">`));
     for (const l of config.languages) assert.match(home, new RegExp(`hreflang="${l.hreflang}" href="${config.siteUrl}${l.path}"`));
     assert.match(home, /hreflang="x-default"/);
@@ -47,6 +47,37 @@ test('pages render every text, with SEO tags', () => {
     assert.doesNotMatch(html, /undefined|\[object Object\]|NaN/, `${file} has a missing text`);
     assert.match(html, /<title>[^<]+<\/title>/);
   }
+});
+
+test('links that are not live yet lead to the stub page, which search engines skip', () => {
+  const pages = renderAll(ROOT);
+  const soon = config.comingSoon ?? [];
+  for (const lang of config.languages) {
+    const dir = lang.path.replace(/^\/|\/$/g, '');
+    const home = pages[[dir, 'index.html'].filter(Boolean).join('/')];
+    const stub = pages[[dir, 'soon', 'index.html'].filter(Boolean).join('/')];
+    assert.ok(stub, `stub page for ${lang.code}`);
+    assert.match(stub, /<meta name="robots" content="noindex">/);
+    if (soon.includes('panelUrl')) {
+      assert.ok(!home.includes(config.panelUrl), 'the panel address is not linked while it is coming soon');
+      assert.ok(home.includes(`href="${lang.path}soon/"`));
+    }
+  }
+  assert.ok(!renderExtras(ROOT)['sitemap.xml'].includes('/soon/'));
+});
+
+test('in a subfolder (GitHub Pages) links and runtime data carry the prefix', () => {
+  const pages = renderAll(ROOT, { base: '/repo/' });
+  for (const [file, html] of Object.entries(pages)) {
+    const links = [...html.matchAll(/<a [^>]*href="(\/[^"]*)"/g)].map((m) => m[1]);
+    assert.ok(links.length, `${file} has links`);
+    for (const href of links) assert.ok(href.startsWith('/repo/'), `${file}: ${href}`);
+    assert.match(html, /<link rel="manifest" href="\/repo\/site\.webmanifest">/);
+  }
+  const home = pages['index.html'];
+  const bots = JSON.parse(/<script type="application\/json" id="bots-data">(.*?)<\/script>/s.exec(home)[1]);
+  for (const b of bots) assert.ok(b.skin.startsWith('/repo/skins/'));
+  assert.equal(JSON.parse(renderExtras(ROOT, { base: '/repo/' })['site.webmanifest']).start_url, '/repo/');
 });
 
 test('sitemap lists every page in every language', () => {

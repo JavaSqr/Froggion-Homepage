@@ -7,7 +7,7 @@ import { createMesher, decodeGrid } from './mesher.js';
 import { modelFor, texturesOf } from './blocks.js';
 import { computeLight } from './light.js';
 
-export const FLUID_TEXTURES = ['block/water_still', 'block/water_flow', 'block/lava_still'];
+export const FLUID_TEXTURES = ['block/water_still', 'block/water_flow', 'block/lava_still', 'block/lava_flow'];
 
 export function islandTextureNames(palette) {
   const names = new Set();
@@ -48,6 +48,7 @@ export function createMaterials(atlas, images) {
   const waterStill = stripTexture(images.get('block/water_still'));
   const waterFlow = stripTexture(images.get('block/water_flow'));
   const lava = stripTexture(images.get('block/lava_still'));
+  const lavaFlow = stripTexture(images.get('block/lava_flow'));
   return {
     map,
     // Lit by the sun and sky so blocks receive shadows; face shading and corner AO stay baked in.
@@ -56,7 +57,9 @@ export function createMaterials(atlas, images) {
     waterStill: new MeshLambertMaterial({ map: waterStill, vertexColors: true, transparent: true, depthWrite: false }),
     waterFlow: new MeshLambertMaterial({ map: waterFlow, vertexColors: true, transparent: true, depthWrite: false }),
     lava: new MeshBasicMaterial({ map: lava, vertexColors: true }),
-    animated: [waterStill, waterFlow, lava],
+    // Sides of lava use the flowing texture, as in the game.
+    lavaFlow: new MeshBasicMaterial({ map: lavaFlow, vertexColors: true }),
+    animated: [waterStill, waterFlow, lava, lavaFlow],
   };
 }
 
@@ -82,7 +85,7 @@ export function createIslandView({ island, extraStates, dynamic, extraStatic = [
 
   const group = new Group();
   group.name = 'island';
-  const layers = ['solid', 'cutout', 'lava', 'waterFlow', 'waterStill'];
+  const layers = ['solid', 'cutout', 'lava', 'lavaFlow', 'waterFlow', 'waterStill'];
   const staticBuild = mesher.build(grid, { skip: (x, y, z) => dynKeys.has(grid.index(x, y, z)) });
   for (const layer of layers) {
     if (!staticBuild[layer].quads) continue;

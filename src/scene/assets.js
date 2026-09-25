@@ -1,5 +1,5 @@
 // Texture loading and the block atlas. Every texture is its own file under /textures/.
-export const TEXTURE_BASE = '/textures/';
+export const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
 /* global __BUILD__ */
 const VERSION = typeof __BUILD__ === 'string' ? __BUILD__ : '';
 // Files in public/ keep their names between builds; the version query makes a new build visible at once.

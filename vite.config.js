@@ -12,6 +12,8 @@ function buildId() {
 }
 
 export default defineConfig({
+  // GitHub Pages serves the site from /<repo>/; the deploy workflow passes that path in BASE_PATH.
+  base: process.env.BASE_PATH || '/',
   plugins: [pagesPlugin()],
   // Static pages: an unknown address is a 404, as on the server, not the home page.
   appType: 'mpa',

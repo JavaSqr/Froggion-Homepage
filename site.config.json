@@ -7,6 +7,13 @@
     "email": "support@froggion.bot",
     "vk": "https://vk.com/froggion"
   },
+  "comingSoon": [
+    "panelUrl",
+    "partnersUrl",
+    "contacts.telegram",
+    "contacts.vk",
+    "contacts.email"
+  ],
   "languages": [
     {
       "code": "ru",
@@ -19,8 +26,9 @@
       "hreflang": "en"
     }
   ],
+  "motion": "always",
   "scene": {
-    "variant": "day"
+    "variant": "night"
   },
   "pricing": {
     "currency": "₽",

@@ -1,13 +1,12 @@
 // Runtime of the island: each bot plays its own loop and owns the entities, blocks and effects of its zone.
 import {
   BoxGeometry, BufferAttribute, BufferGeometry, Group, Line, LineBasicMaterial, Mesh, MeshBasicMaterial,
-  Sprite, SpriteMaterial,
+  Sprite, SpriteMaterial, Vector3,
 } from 'three';
 import { BotLoop, sampleTrack } from './timeline.js';
 import { Humanoid } from './humanoid.js';
 import { Creeper } from './creeper.js';
 import { handTransform, GROUND, spriteTexture } from './items.js';
-import { createNameTag } from './nametag.js';
 import { modelFor } from './blocks.js';
 import { wrapDegrees, rotLerp, lerp, DEG } from './model.js';
 
@@ -125,9 +124,9 @@ export class World {
     model.entity.userData.nick = data.nick;
     for (const m of model.pickables) m.userData.nick = data.nick;
     castShadows(model.entity);
-    const tag = createNameTag(data.nick);
+    // Where the name tag goes; drawn as HTML over the canvas (nametags.js).
+    const tag = { position: new Vector3(), visible: true };
     this.root.add(model.entity);
-    this.root.add(tag);
     const bot = {
       data, meta, model, tag,
       living: new Living(sampleTrack(data.track, 0)),

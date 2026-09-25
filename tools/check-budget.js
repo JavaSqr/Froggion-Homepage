@@ -16,7 +16,9 @@ const sizeOf = (file) => {
   return Math.min(buf.length, zlib.gzipSync(buf, { level: 9 }).length);
 };
 const rel = (file) => path.relative(DIST, file).split(path.sep).join('/');
-const inDist = (url) => path.join(DIST, url.replace(/^\//, '').split('?')[0]);
+// Built with BASE_PATH (GitHub Pages), page URLs start with it.
+const BASE = `/${process.env.BASE_PATH || '/'}/`.replace(/\/+/g, '/');
+const inDist = (url) => path.join(DIST, (url.startsWith(BASE) ? url.slice(BASE.length) : url.replace(/^\//, '')).split('?')[0]);
 
 function pageWeight(htmlFile, { live }) {
   const html = fs.readFileSync(htmlFile, 'utf8');

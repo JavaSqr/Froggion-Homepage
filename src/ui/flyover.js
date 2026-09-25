@@ -40,6 +40,20 @@ export function initFlyover({ scene, section }) {
 
   measure();
   update(true);
+
+  // «Подробнее» on a bot card: the page jumps to the bot's block and the camera flies straight to the bot,
+  // not through the stops before it.
+  document.addEventListener('click', (e) => {
+    const a = e.target instanceof Element ? e.target.closest('a[href^="#bot-"]') : null;
+    const i = a ? jobs.findIndex((j) => `#${j.id}` === a.getAttribute('href')) : -1;
+    if (i < 0 || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    scene.jump(i);
+    const r = jobs[i].getBoundingClientRect();
+    window.scrollTo({ top: r.top + window.scrollY + r.height / 2 - window.innerHeight / 2, behavior: 'instant' });
+    history.pushState(null, '', a.getAttribute('href'));
+    update();
+  });
   const remeasure = () => { measure(); update(); };
   addEventListener('scroll', () => update(), { passive: true });
   addEventListener('resize', remeasure);

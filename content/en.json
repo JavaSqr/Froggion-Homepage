@@ -328,5 +328,11 @@
     "privacy": "Privacy policy",
     "stub": "This document is being prepared and will appear on this page soon.",
     "back": "Back to the home page"
+  },
+  "soon": {
+    "title": "Oops, nothing here yet",
+    "text": "Froggion is still in development, so this link doesn’t lead anywhere yet. Check back a little later — we’re finishing things up.",
+    "home": "Back to home",
+    "meta": "Coming soon"
   }
 }

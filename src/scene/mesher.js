@@ -73,7 +73,7 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null, lig
   const isLava = (m) => m.kind === 'fluid' && m.fluid === 'lava';
 
   function build(grid, { cells = null, skip = () => false } = {}) {
-    const out = { solid: new Buffer(), cutout: new Buffer(), waterStill: new Buffer(), waterFlow: new Buffer(), lava: new Buffer() };
+    const out = { solid: new Buffer(), cutout: new Buffer(), waterStill: new Buffer(), waterFlow: new Buffer(), lava: new Buffer(), lavaFlow: new Buffer() };
     for (const b of Object.values(out)) b.sink = sink;
     const [sx, sy, sz] = grid.size;
     const model = (x, y, z) => (skip(x, y, z) ? models[0] : models[grid.get(x, y, z)] ?? models[0]);
@@ -163,7 +163,7 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null, lig
       const h = fluidHeight(m.kind === 'fluid' ? m : { kind: 'fluid', level: 0 }, above);
       const alphaAt = (yy) => (fade && water ? Math.max(0, Math.min(1, (yy - fade.y0) / (fade.y1 - fade.y0))) : 1);
       const still = water ? out.waterStill : out.lava;
-      const flow = water ? out.waterFlow : out.lava;
+      const flow = water ? out.waterFlow : out.lavaFlow;
       const tile = (u0, v0, u1, v1) => [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
       if (!above) {
         const cs = corners('up', [0, 0, 0], [1, h, 1]).map((c) => [x + c[0], y + c[1], z + c[2]]);
