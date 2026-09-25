@@ -58,11 +58,12 @@ class Buffer {
  * grid: { size: [sx, sy, sz], get(x, y, z) → palette index } in island-local coordinates.
  * palette: state strings. uvOf(texture) → [u0, v0, u1, v1] in atlas space (v0 = top edge).
  * skip(x, y, z) → true for cells rendered separately (dynamic blocks); they count as air here.
- * fade: optional { y0, y1 } fading fluid alpha from 0 at y0 to 1 at y1 (the waterfall's bottom).
+ * fade: optional { y0, y1 } fading water alpha from 0 at y0 to 1 at y1 (the waterfall's bottom);
+ * lavaFade: the same for lava (the lavafalls dissolve into the void).
  */
 // depthFade: { y0, y1, min } darkens everything below y1 towards `min` at y0, so the rock underside sinks into the dark.
 // lighting: { light: computeLight(...) result, map(block, sky) → [r, g, b] } bakes block/sky light into vertex colours.
-export function createMesher({ palette, uvOf, fade = null, depthFade = null, lighting = null }) {
+export function createMesher({ palette, uvOf, fade = null, lavaFade = null, depthFade = null, lighting = null }) {
   const sink = (y) => {
     if (!depthFade) return 1;
     const t = Math.max(0, Math.min(1, (y - depthFade.y0) / (depthFade.y1 - depthFade.y0)));
@@ -75,6 +76,8 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null, lig
   function build(grid, { cells = null, skip = () => false } = {}) {
     const out = { solid: new Buffer(), cutout: new Buffer(), waterStill: new Buffer(), waterFlow: new Buffer(), lava: new Buffer(), lavaFlow: new Buffer() };
     for (const b of Object.values(out)) b.sink = sink;
+    // Lava glows: it does not sink into the dark with the rock.
+    out.lava.sink = out.lavaFlow.sink = null;
     const [sx, sy, sz] = grid.size;
     const model = (x, y, z) => (skip(x, y, z) ? models[0] : models[grid.get(x, y, z)] ?? models[0]);
     const opaque = (x, y, z) => !!model(x, y, z).opaque;
@@ -161,7 +164,8 @@ export function createMesher({ palette, uvOf, fade = null, depthFade = null, lig
       const same = water ? isWater : isLava;
       const above = same(model(x, y + 1, z));
       const h = fluidHeight(m.kind === 'fluid' ? m : { kind: 'fluid', level: 0 }, above);
-      const alphaAt = (yy) => (fade && water ? Math.max(0, Math.min(1, (yy - fade.y0) / (fade.y1 - fade.y0))) : 1);
+      const f = water ? fade : lavaFade;
+      const alphaAt = (yy) => (f ? Math.max(0, Math.min(1, (yy - f.y0) / (f.y1 - f.y0))) : 1);
       const still = water ? out.waterStill : out.lava;
       const flow = water ? out.waterFlow : out.lavaFlow;
       const tile = (u0, v0, u1, v1) => [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];

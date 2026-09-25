@@ -11,6 +11,7 @@ import { createRegistry, exportIsland } from './lib/world.js';
 import { simulate } from './lib/simulate.js';
 import { assignZones, zoneTimeline, loopCandidates, loopCost } from './lib/loops.js';
 import { encodeBotLoop, Palette, POS_SCALE, ANGLE_SCALE } from './lib/encode.js';
+import { pourLava } from './lib/fluids.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const readJson = (p, fallback) => (fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : fallback);
@@ -46,7 +47,8 @@ export async function convert({ root = ROOT, suggest = false, write = true, log 
   for (const take of takes) for (const [nick, { zone }] of take.perBot) for (const b of zone.blocks) dynamicByBot.get(nick).set(b.key, b.pos);
   const allDynamic = [...dynamicByBot.values()].flatMap((m) => [...m.values()]);
   const nightLights = readNightLights(src('night.json'), base.initialWorld, reg, allDynamic);
-  const island = exportIsland(base.initialWorld, { keep: [...allDynamic, ...nightLights.map((l) => l.at)] });
+  const decor = addDecor(src('decor.json'), base.initialWorld, reg, [...allDynamic, ...nightLights.map((l) => l.at)]);
+  const island = exportIsland(base.initialWorld, { keep: [...allDynamic, ...nightLights.map((l) => l.at), ...decor.map((c) => c.slice(0, 3))] });
 
   const palette = new Palette(reg);
   const out = [];
@@ -90,7 +92,7 @@ export async function convert({ root = ROOT, suggest = false, write = true, log 
     island: [islandText.length, zlib.gzipSync(islandText, { level: 9 }).length],
   };
 
-  const report = buildReport({ takes, bots, chosen, out, island, sizes, reg });
+  const report = buildReport({ takes, bots, chosen, out, island, sizes, reg, decor });
   if (write) {
     const dataDir = path.join(root, 'public/data');
     fs.mkdirSync(dataDir, { recursive: true });
@@ -104,6 +106,20 @@ export async function convert({ root = ROOT, suggest = false, write = true, log 
   log(`scene.json ${(sizes.scene[0] / 1024).toFixed(1)} KB (gzip ${(sizes.scene[1] / 1024).toFixed(1)} KB), island.json ${(sizes.island[0] / 1024).toFixed(1)} KB (gzip ${(sizes.island[1] / 1024).toFixed(1)} KB)`);
   for (const [nick, c] of Object.entries(chosen)) log(`${nick}: ${c.replay} ticks ${c.from}..${c.to} (${((c.to - c.from) / 20).toFixed(1)} s)`);
   return { scene: sceneJson, island: islandJson, night: nightJson, takes, chosen, report, sizes };
+}
+
+// Blocks that are not in the recordings (source/decor.json): lava sources, poured over the island like in the game.
+function addDecor(file, world, reg, taken) {
+  if (!fs.existsSync(file)) return [];
+  const { lava = [] } = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const busy = new Set(taken.map((p) => p.join(',')));
+  const solid = (x, y, z) => !reg.isAir(world.get(x, y, z));
+  for (const at of lava) {
+    const [x, y, z] = at;
+    if (!world.contains(x, y, z) || !reg.isAir(world.get(x, y, z)) || busy.has(at.join(','))) throw new Error(`decor.json: lava at ${at.join(',')} is not an empty cell of the island`);
+    if (![[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, -1]].some(([dx, dy, dz]) => solid(x + dx, y + dy, z + dz))) throw new Error(`decor.json: lava at ${at.join(',')} does not touch the island`);
+  }
+  return pourLava(world, reg, lava);
 }
 
 // Extra light sources for the night scene (source/night.json), checked against the island.
@@ -132,7 +148,7 @@ function count(list, key) {
 const fmtCounts = (m) => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ×${v}`).join(', ') || '—';
 const sec = (ticks) => `${(ticks / 20).toFixed(1)} с`;
 
-function buildReport({ takes, bots, chosen, out, island, sizes, reg }) {
+function buildReport({ takes, bots, chosen, out, island, sizes, reg, decor = [] }) {
   const L = [];
   L.push('# Реплеи → ленты событий', '');
   L.push('Сгенерировано `node tools/replay-to-timeline.js`. Границы циклов правятся в `source/loops.json` (тики по 50 мс от начала записи, `to` не включается).', '');
@@ -189,6 +205,7 @@ function buildReport({ takes, bots, chosen, out, island, sizes, reg }) {
   L.push('| Блок | Кол-во |', '|---|---|');
   for (const [k, v] of Object.entries(island.counts).sort((a, b) => b[1] - a[1])) L.push(`| ${k} | ${v} |`);
   L.push('', `Технические блоки: ${fmtCounts(island.technical)}`, '');
+  if (decor.length) L.push(`Добавлено из \`source/decor.json\` (в записях этого нет): лава — источников ${decor.filter((c) => c[3] === 0).length}, всего клеток ${decor.length}.`, '');
   L.push('## Мобы и предметы во всех записях', '');
   for (const t of takes) {
     L.push(`- ${t.name}: ${fmtCounts(count(t.sim.entities, (e) => e.kind + (e.meta.item ? `:${e.meta.item}` : '')))}`);

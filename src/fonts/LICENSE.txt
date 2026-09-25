@@ -1,0 +1,6 @@
+pixel.woff — «Minecraft 1.1» by Pwnage_Block, Copyright Pwnage_Block 2011.
+https://fontstruct.com/fontstructions/show/432966
+Licensed under Creative Commons Attribution-ShareAlike 3.0: https://creativecommons.org/licenses/by-sa/3.0/
+Repacked from TrueType to WOFF without changes to the glyphs or the names.
+
+pixel-extra.woff — signs missing from that font (₽ — – − « » → × … · ©), drawn for Froggion in the same pixel grid.

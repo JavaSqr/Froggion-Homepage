@@ -415,6 +415,12 @@ function finalCta(ctx) {
     </section>`;
 }
 
+// The pixel font's credit, as its license (CC BY-SA 3.0) asks; see src/fonts/LICENSE.txt.
+const FONT = {
+  name: 'Minecraft 1.1', author: 'Pwnage_Block', url: 'https://fontstruct.com/fontstructions/show/432966',
+  license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
+};
+
 function footer(ctx) {
   const { t, lang, config } = ctx;
   const f = t.footer;
@@ -443,6 +449,7 @@ function footer(ctx) {
         </div>
       </div>
       <p class="site-footer__legal" lang="en">${esc(f.disclaimer)}</p>
+      <p class="site-footer__legal">${esc(f.font.label)}: <a href="${FONT.url}">${FONT.name}</a>, ${esc(f.font.by)} ${FONT.author}, ${esc(f.font.license)} <a href="${FONT.licenseUrl}" rel="license">${FONT.license}</a>.</p>
       <p class="site-footer__copy">${esc(f.copyright)}</p>
     </footer>`;
 }

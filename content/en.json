@@ -321,7 +321,12 @@
     "offer": "Public offer",
     "privacy": "Privacy policy",
     "disclaimer": "Not an official Minecraft service. Not approved by or associated with Mojang or Microsoft",
-    "copyright": "© 2026 Froggion"
+    "copyright": "© 2026 Froggion",
+    "font": {
+      "label": "Pixel font",
+      "by": "by",
+      "license": "license"
+    }
   },
   "legal": {
     "offer": "Public offer",

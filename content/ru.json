@@ -321,7 +321,12 @@
     "offer": "Публичная оферта",
     "privacy": "Политика конфиденциальности",
     "disclaimer": "Not an official Minecraft service. Not approved by or associated with Mojang or Microsoft",
-    "copyright": "© 2026 Froggion"
+    "copyright": "© 2026 Froggion",
+    "font": {
+      "label": "Пиксельный шрифт",
+      "by": "автор",
+      "license": "лицензия"
+    }
   },
   "legal": {
     "offer": "Публичная оферта",

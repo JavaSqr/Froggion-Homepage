@@ -1,0 +1,8 @@
+{
+  "_comment": "Blocks that are not in the recordings, world coordinates. Lava sources pour over the island like in the game (tools/lib/fluids.js).",
+  "lava": [
+    [-219, 16, 34],
+    [-224, 11, 30],
+    [-223, 11, 30]
+  ]
+}

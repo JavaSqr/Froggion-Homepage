@@ -56,9 +56,10 @@ export function createMaterials(atlas, images) {
     cutout: new MeshLambertMaterial({ map, vertexColors: true, alphaTest: 0.5, side: DoubleSide }),
     waterStill: new MeshLambertMaterial({ map: waterStill, vertexColors: true, transparent: true, depthWrite: false }),
     waterFlow: new MeshLambertMaterial({ map: waterFlow, vertexColors: true, transparent: true, depthWrite: false }),
-    lava: new MeshBasicMaterial({ map: lava, vertexColors: true }),
+    // Lava is not lit, it glows; transparent only so that the lavafalls can fade out at the bottom.
+    lava: new MeshBasicMaterial({ map: lava, vertexColors: true, transparent: true }),
     // Sides of lava use the flowing texture, as in the game.
-    lavaFlow: new MeshBasicMaterial({ map: lavaFlow, vertexColors: true }),
+    lavaFlow: new MeshBasicMaterial({ map: lavaFlow, vertexColors: true, transparent: true }),
     animated: [waterStill, waterFlow, lava, lavaFlow],
   };
 }
@@ -69,7 +70,7 @@ export function createMaterials(atlas, images) {
  * extraStatic: [[x, y, z, state]] blocks added to the island (night lights).
  * lightmap: (block, sky) → [r, g, b]; when set, block and sky light are baked into the mesh.
  */
-export function createIslandView({ island, extraStates, dynamic, extraStatic = [], atlas, materials, fade, depthFade, lightmap = null }) {
+export function createIslandView({ island, extraStates, dynamic, extraStatic = [], atlas, materials, fade, lavaFade, depthFade, lightmap = null }) {
   const palette = [...island.palette];
   const indexOf = new Map(palette.map((s, i) => [s, i]));
   const addState = (s) => { if (!indexOf.has(s)) { indexOf.set(s, palette.length); palette.push(s); } return indexOf.get(s); };
@@ -81,7 +82,7 @@ export function createIslandView({ island, extraStates, dynamic, extraStatic = [
   for (const [x, y, z, s] of dynamic) overrides.set(grid.index(x, y, z), indexOf.get(s));
   for (const [x, y, z, s] of extraStatic) overrides.set(grid.index(x, y, z), indexOf.get(s));
   const light = lightmap ? computeLight(grid, palette.map((s) => modelFor(s))) : null;
-  const mesher = createMesher({ palette, uvOf: atlas.uvOf, fade, depthFade, lighting: light ? { light, map: lightmap } : null });
+  const mesher = createMesher({ palette, uvOf: atlas.uvOf, fade, lavaFade, depthFade, lighting: light ? { light, map: lightmap } : null });
 
   const group = new Group();
   group.name = 'island';

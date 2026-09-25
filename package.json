@@ -21,7 +21,6 @@
     "budget": "node tools/check-budget.js"
   },
   "devDependencies": {
-    "@fontsource/handjet": "^5.3.0",
     "jszip": "^3.10.2",
     "minecraft-data": "^3.117.0",
     "minecraft-protocol": "^1.68.0",

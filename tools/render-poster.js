@@ -40,8 +40,8 @@ function overlayHtml(lang) {
       <img src="/brand/logo.png" width="68" height="70" alt="">
       <span style="font:700 46px/1 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#e9f0e6">Froggion</span>
     </div>
-    <h1 style="position:absolute;left:64px;bottom:120px;width:560px;margin:0;font:700 72px/0.98 Handjet,monospace;color:#e9f0e6;text-shadow:0 3px 0 rgba(0,0,0,.45)">${esc(t.hero.title)}</h1>
-    <p style="position:absolute;left:64px;bottom:64px;margin:0;font:700 30px/1 Handjet,monospace;color:#d38b34">${esc(t.hero.ctaNote)}</p>
+    <h1 style="position:absolute;left:64px;bottom:120px;width:600px;margin:0;font:48px/1.17 'Froggion Pixel',monospace;color:#e9f0e6;text-shadow:0 4px 0 rgba(0,0,0,.45)">${esc(t.hero.title)}</h1>
+    <p style="position:absolute;left:64px;bottom:64px;margin:0;font:24px/1 'Froggion Pixel',monospace;color:#d38b34">${esc(t.hero.ctaNote)}</p>
   </div>`;
 }
 
@@ -79,7 +79,7 @@ try {
           el.id = 'og-overlay';
           el.innerHTML = html;
           document.body.append(el);
-          await document.fonts.load('700 72px Handjet', el.textContent);
+          await document.fonts.load('48px "Froggion Pixel"', el.textContent);
           await Promise.all([...el.querySelectorAll('img')].map((i) => i.decode()));
         }, overlayHtml(f.overlay));
         image = sharp(await page.screenshot()).jpeg({ quality: 84, mozjpeg: true });

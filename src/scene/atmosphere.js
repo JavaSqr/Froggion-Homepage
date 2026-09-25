@@ -7,6 +7,7 @@ import {
   LinearFilter, Points, PointsMaterial, Sprite, SpriteMaterial, Vector3,
 } from 'three';
 import { spriteTexture } from './items.js';
+import { lavaTicker } from './lava.js';
 
 function shadowLight(light, center, lite, span = 22) {
   light.target.position.copy(center);
@@ -19,14 +20,14 @@ function shadowLight(light, center, lite, span = 22) {
   return light;
 }
 
-export function dayAtmosphere(scene, { center, lite }) {
+export function dayAtmosphere(scene, { center, lite, lava, particles }) {
   scene.add(new AmbientLight(0xffffff, 0.36 * Math.PI));
   scene.add(new HemisphereLight(0xc9d8e6, 0x3a3226, 0.25 * Math.PI));
   const sun = shadowLight(new DirectionalLight(0xfff1dc, 0.55 * Math.PI), center, lite);
   sun.position.copy(center).add(new Vector3(-18, 30, 12));
   scene.add(sun, sun.target);
   scene.fog = new Fog(0x0b0f0c, 55, 110);
-  return { variant: 'day', tick() {}, update() {}, particleDim: 0.8 };
+  return { variant: 'day', tick: lavaTicker(lava, particles), update() {}, particleDim: 0.8 };
 }
 
 // Direction in the upper right of the first-screen view, for the moon.
@@ -69,7 +70,7 @@ const GLOW = {
 };
 const smoothstep = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-export function nightAtmosphere(scene, { center, lite, heroPose, images, emitters, particles, occludes }) {
+export function nightAtmosphere(scene, { center, lite, heroPose, images, emitters, lava, particles, occludes }) {
   // The baked island colours already carry the light, so the base light is plain white.
   scene.add(new AmbientLight(0xffffff, Math.PI));
   const moonDir = moonDirection(heroPose);
@@ -95,7 +96,6 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
   scene.add(moonHalo);
 
   const glows = [];
-  const lava = emitters.filter((e) => e[4] === 'lava');
   const others = emitters.filter((e) => e[4] !== 'lava');
   const sprite = (size, color) => {
     const s = new Sprite(new SpriteMaterial({ map: glowTex, color, blending: AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, fog: false }));
@@ -104,21 +104,19 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
     scene.add(s);
     return s;
   };
-  const addGlow = (x, y, z, kind) => {
+  const addGlow = (x, y, z, kind, strength = 1) => {
     const g = GLOW[kind] ?? GLOW.lantern;
     const pos = new Vector3(x, y, z);
     const halo = sprite(g.size, g.color);
     const core = g.core ? sprite(g.core, 0xffe3a8) : null;
     halo.position.copy(pos);
     core?.position.copy(pos);
-    glows.push({ pos, halo, core, base: g.opacity, flicker: 0, vis: 0 });
+    glows.push({ pos, halo, core, base: g.opacity * strength, flicker: 0, vis: 0 });
   };
   for (const [x, y, z, , kind] of others) addGlow(x + 0.5, y + (GLOW[kind] ?? GLOW.lantern).y, z + 0.5, kind);
-  // Neighbouring lava cells share one glow.
-  if (lava.length) {
-    const c = lava.reduce((a, [x, y, z]) => [a[0] + x, a[1] + y, a[2] + z], [0, 0, 0]).map((v) => v / lava.length);
-    addGlow(c[0] + 0.5, c[1] + GLOW.lava.y, c[2] + 0.5, 'lava');
-  }
+  // Lava: one glow over a pool, a row of them down each lavafall.
+  for (const g of lava.glows) addGlow(...g.at, 'lava', g.pool ? 1 : 0.8 * g.strength);
+  const lavaTick = lavaTicker(lava, particles);
 
   const right = new Vector3(), up = new Vector3(), probe = new Vector3();
   let frame = 0;
@@ -133,7 +131,7 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
           particles.spawn('flame', [x + 0.5, y + 0.7, z + 0.5]);
         }
       }
-      for (const [x, y, z] of lava) if (Math.random() < 0.006) particles.spawn('lava', [x + 0.5, y + 1, z + 0.5]);
+      lavaTick();
       for (const g of glows) {
         g.flicker += (Math.random() - Math.random()) * Math.random() * Math.random() * 0.1;
         g.flicker *= 0.9;

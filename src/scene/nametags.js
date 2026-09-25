@@ -32,11 +32,19 @@ export class NameTags {
       const hidden = !tag.visible || p.z > 1 || p.z < -1;
       if (hidden !== it.hidden) { it.el.style.visibility = hidden ? 'hidden' : ''; it.hidden = hidden; }
       if (hidden) continue;
-      // Readable far away, not oversized up close.
-      const size = Math.round(clamp((LINE * perUnit) / camera.position.distanceTo(tag.position), 12, 22));
-      if (size !== it.size) { it.el.style.fontSize = `${size}px`; it.size = size; }
-      const x = ((p.x + 1) / 2) * width, y = ((1 - p.y) / 2) * height;
-      it.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+      // Readable far away, not oversized up close; whole steps of the pixel font (8px) keep its pixels square.
+      const size = 8 * Math.round(clamp((LINE * perUnit) / camera.position.distanceTo(tag.position), 8, 24) / 8);
+      if (size !== it.size) {
+        it.el.style.fontSize = `${size}px`;
+        it.size = size;
+        it.w = it.el.offsetWidth;
+        it.h = it.el.offsetHeight;
+      }
+      // Whole device pixels, so the pixel font stays sharp.
+      const dpr = window.devicePixelRatio || 1;
+      const x = Math.round((((p.x + 1) / 2) * width - it.w / 2) * dpr) / dpr;
+      const y = Math.round((((1 - p.y) / 2) * height - it.h) * dpr) / dpr;
+      it.el.style.transform = `translate(${x}px, ${y}px)`;
       if (checkOcclusion) {
         const behind = this.occludes(camera.position, tag.position);
         if (behind !== it.behind) { it.el.classList.toggle('is-behind', behind); it.behind = behind; }

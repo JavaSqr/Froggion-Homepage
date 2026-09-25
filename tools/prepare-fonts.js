@@ -1,27 +1,26 @@
-// Fonts for the site, from @fontsource/handjet (SIL OFL 1.1, no reserved font name) into src/fonts/.
-// Handjet's zero has a bar inside that reads as «8» at small sizes (109 ₽ looks like 189 ₽),
-// so the Latin files get a plain zero: the bar contour is removed from the glyph.
+// Fonts for the site, into src/fonts/:
+//   pixel.woff        «Minecraft 1.1» by Pwnage_Block (CC BY-SA 3.0), from source/fonts/Minecraft_1.1.ttf,
+//                     repacked as WOFF with the glyphs, names and license notice unchanged;
+//   pixel-extra.woff  our own glyphs in the same 8-pixel grid for signs the font lacks (₽ — « » → …),
+//                     used only for those characters (unicode-range in main.css).
 //   node tools/prepare-fonts.js
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const SRC = path.join(ROOT, 'node_modules/@fontsource/handjet');
+const SRC = path.join(ROOT, 'source/fonts');
 const OUT = path.join(ROOT, 'src/fonts');
 
-// WOFF 1.0: header, table directory, zlib-compressed tables.
-function readWoff(buf) {
-  if (buf.toString('latin1', 0, 4) !== 'wOFF') throw new Error('not a WOFF file');
-  const flavor = buf.readUInt32BE(4);
-  const count = buf.readUInt16BE(12);
+function readSfnt(buf) {
+  const flavor = buf.readUInt32BE(0);
+  const count = buf.readUInt16BE(4);
   const tables = new Map();
   for (let i = 0; i < count; i++) {
-    const o = 44 + i * 20;
+    const o = 12 + i * 16;
     const tag = buf.toString('latin1', o, o + 4);
-    const offset = buf.readUInt32BE(o + 4), compLength = buf.readUInt32BE(o + 8), origLength = buf.readUInt32BE(o + 12);
-    const raw = buf.subarray(offset, offset + compLength);
-    tables.set(tag, compLength < origLength ? zlib.inflateSync(raw) : Buffer.from(raw));
+    const offset = buf.readUInt32BE(o + 8), length = buf.readUInt32BE(o + 12);
+    tables.set(tag, Buffer.from(buf.subarray(offset, offset + length)));
   }
   return { flavor, tables };
 }
@@ -33,6 +32,7 @@ function checksum(data) {
   return sum;
 }
 
+// WOFF 1.0: header, table directory, zlib-compressed tables.
 function writeWoff({ flavor, tables }) {
   const tags = [...tables.keys()].sort();
   const entries = tags.map((tag) => {
@@ -63,106 +63,137 @@ function writeWoff({ flavor, tables }) {
   return out;
 }
 
-// Glyph id of a character from the cmap format 4 subtable.
-function glyphFor(cmap, code) {
-  const n = cmap.readUInt16BE(2);
-  for (let i = 0; i < n; i++) {
-    const off = cmap.readUInt32BE(4 + i * 8 + 4);
-    if (cmap.readUInt16BE(off) !== 4) continue;
-    const segs = cmap.readUInt16BE(off + 6) / 2;
-    const ends = off + 14, starts = ends + segs * 2 + 2, deltas = starts + segs * 2, ranges = deltas + segs * 2;
-    for (let s = 0; s < segs; s++) {
-      if (code > cmap.readUInt16BE(ends + s * 2)) continue;
-      const start = cmap.readUInt16BE(starts + s * 2);
-      if (code < start) return 0;
-      const delta = cmap.readInt16BE(deltas + s * 2), ro = cmap.readUInt16BE(ranges + s * 2);
-      if (!ro) return (code + delta) & 0xffff;
-      const g = cmap.readUInt16BE(ranges + s * 2 + ro + (code - start) * 2);
-      return g ? (g + delta) & 0xffff : 0;
+// ---------- the extra glyphs ----------
+
+// Rows from the top; the row marked by `base` sits on the baseline. One pixel = 128 units, 8 per em,
+// like the main font (cap height 7 pixels, the middle of lowercase at row 2 above the baseline).
+const GLYPHS = {
+  0x20bd: { advance: 6, base: 6, rows: ['.###.', '.#..#', '.#..#', '.###.', '.#...', '###..', '.#...'] }, // ₽
+  0x2014: { advance: 9, base: 2, rows: ['########', '........', '........'] }, // —
+  0x2013: { advance: 7, base: 2, rows: ['######', '......', '......'] }, // –
+  0x2212: { advance: 6, base: 2, rows: ['#####', '.....', '.....'] }, // −
+  0x00ab: { advance: 5, base: 3, rows: ['.#.#', '#.#.', '.#.#', '....'] }, // «
+  0x00bb: { advance: 5, base: 3, rows: ['#.#.', '.#.#', '#.#.', '....'] }, // »
+  0x2192: { advance: 8, base: 4, rows: ['....#..', '.....#.', '#######', '.....#.', '....#..'] }, // →
+  0x00d7: { advance: 6, base: 4, rows: ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'] }, // ×
+  0x2026: { advance: 6, base: 1, rows: ['#.#.#', '#.#.#'] }, // …
+  0x00b7: { advance: 2, base: 3, rows: ['#', '#', '.', '.'] }, // ·
+  0x00a9: { advance: 8, base: 6, rows: ['.#####.', '#.....#', '#.###.#', '#.#...#', '#.###.#', '#.....#', '.#####.'] }, // ©
+  0x00a0: { advance: 2, base: 0, rows: [] }, // no-break space
+  0x202f: { advance: 2, base: 0, rows: [] }, // narrow no-break space (thousands in ru-RU prices)
+};
+const PX = 128, EM = 1024;
+
+// A glyph as rectangles: runs of pixels in each row.
+function contoursOf({ base, rows }) {
+  const rects = [];
+  rows.forEach((row, i) => {
+    const y = (base - i) * PX;
+    for (let x = 0; x < row.length;) {
+      if (row[x] !== '#') { x++; continue; }
+      let w = 0;
+      while (row[x + w] === '#') w++;
+      rects.push([x * PX, y, (x + w) * PX, y + PX]);
+      x += w;
     }
-  }
-  throw new Error('no cmap format 4 subtable');
+  });
+  // Clockwise, as TrueType fills outer contours.
+  return rects.map(([x0, y0, x1, y1]) => [[x0, y0], [x0, y1], [x1, y1], [x1, y0]]);
 }
 
-// Simple glyph → contours of { x, y, on } points.
-function parseGlyph(g) {
-  const nc = g.readInt16BE(0);
-  if (nc < 0) throw new Error('composite glyph');
-  const ends = Array.from({ length: nc }, (_, i) => g.readUInt16BE(10 + i * 2));
-  const n = ends[nc - 1] + 1;
-  let p = 10 + nc * 2;
-  const instructions = g.subarray(p + 2, p + 2 + g.readUInt16BE(p));
-  p += 2 + instructions.length;
-  const flags = [];
-  while (flags.length < n) {
-    const f = g[p++];
-    flags.push(f);
-    if (f & 8) for (let r = g[p++]; r > 0; r--) flags.push(f);
-  }
-  const read = (short, same) => {
-    let v = 0;
-    return flags.map((f) => {
-      if (f & short) { const d = g[p++]; v += f & same ? d : -d; } else if (!(f & same)) { v += g.readInt16BE(p); p += 2; }
-      return v;
-    });
-  };
-  const xs = read(2, 16), ys = read(4, 32);
-  const points = flags.map((f, i) => ({ x: xs[i], y: ys[i], on: f & 1 }));
-  const contours = ends.map((e, i) => points.slice(i ? ends[i - 1] + 1 : 0, e + 1));
-  return { bbox: [g.readInt16BE(2), g.readInt16BE(4), g.readInt16BE(6), g.readInt16BE(8)], instructions, contours };
-}
-
-function encodeGlyph({ bbox, instructions, contours }) {
-  const points = contours.flat();
-  const parts = [Buffer.alloc(10 + contours.length * 2 + 2)];
-  const head = parts[0];
+function glyphData(contours) {
+  if (!contours.length) return { data: Buffer.alloc(0), box: [0, 0, 0, 0], points: 0 };
+  const pts = contours.flat();
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  const head = Buffer.alloc(10 + contours.length * 2 + 2);
   head.writeInt16BE(contours.length, 0);
-  bbox.forEach((v, i) => head.writeInt16BE(v, 2 + i * 2));
-  let end = -1;
-  contours.forEach((c, i) => { end += c.length; head.writeUInt16BE(end, 10 + i * 2); });
-  head.writeUInt16BE(instructions.length, 10 + contours.length * 2);
-  parts.push(instructions, Buffer.from(points.map((pt) => (pt.on ? 1 : 0))));
-  for (const axis of ['x', 'y']) {
-    const b = Buffer.alloc(points.length * 2);
-    let prev = 0;
-    points.forEach((pt, i) => { b.writeInt16BE(pt[axis] - prev, i * 2); prev = pt[axis]; });
-    parts.push(b);
-  }
-  const g = Buffer.concat(parts);
-  return g.length % 2 ? Buffer.concat([g, Buffer.alloc(1)]) : g;
+  box.forEach((v, i) => head.writeInt16BE(v, 2 + i * 2));
+  contours.forEach((_, i) => head.writeUInt16BE((i + 1) * 4 - 1, 10 + i * 2));
+  head.writeUInt16BE(0, 10 + contours.length * 2); // no instructions
+  const flags = Buffer.alloc(pts.length, 1); // on-curve, 16-bit deltas
+  const coords = Buffer.alloc(pts.length * 4);
+  let px = 0, py = 0;
+  pts.forEach(([x, y], i) => { coords.writeInt16BE(x - px, i * 2); px = x; });
+  pts.forEach(([x, y], i) => { coords.writeInt16BE(y - py, pts.length * 2 + i * 2); py = y; });
+  let data = Buffer.concat([head, flags, coords]);
+  if (data.length % 4) data = Buffer.concat([data, Buffer.alloc(4 - (data.length % 4))]);
+  return { data, box, points: pts.length, contours: contours.length };
 }
 
-// The zero is an outer ring, its counter, and a bar inside the counter; drop the bar.
-function plainZero(font) {
-  const { tables } = font;
-  const gid = glyphFor(tables.get('cmap'), 0x30);
-  const longLoca = tables.get('head').readInt16BE(50) === 1;
-  const loca = tables.get('loca');
-  const at = (i) => (longLoca ? loca.readUInt32BE(i * 4) : loca.readUInt16BE(i * 2) * 2);
-  const glyf = tables.get('glyf');
-  const start = at(gid), end = at(gid + 1);
-  const glyph = parseGlyph(glyf.subarray(start, end));
-  const box = (c) => [Math.min(...c.map((p) => p.x)), Math.min(...c.map((p) => p.y)), Math.max(...c.map((p) => p.x)), Math.max(...c.map((p) => p.y))];
-  const [, counter, bar] = glyph.contours.map(box);
-  const inside = glyph.contours.length === 3 && bar[0] > counter[0] && bar[2] < counter[2] && bar[1] > counter[1] && bar[3] < counter[3];
-  if (!inside) throw new Error('unexpected shape of the zero glyph; check the font version');
-  const next = encodeGlyph({ ...glyph, contours: glyph.contours.slice(0, 2) });
-  const delta = next.length - (end - start);
-  tables.set('glyf', Buffer.concat([glyf.subarray(0, start), next, glyf.subarray(end)]));
-  const count = loca.length / (longLoca ? 4 : 2);
-  for (let i = gid + 1; i < count; i++) {
-    if (longLoca) loca.writeUInt32BE(loca.readUInt32BE(i * 4) + delta, i * 4);
-    else loca.writeUInt16BE(loca.readUInt16BE(i * 2) + delta / 2, i * 2);
-  }
-  return font;
+function u16(...values) { const b = Buffer.alloc(values.length * 2); values.forEach((v, i) => b.writeUInt16BE(v & 0xffff, i * 2)); return b; }
+function i16(v) { const b = Buffer.alloc(2); b.writeInt16BE(v); return b; }
+function u32(v) { const b = Buffer.alloc(4); b.writeUInt32BE(v >>> 0); return b; }
+
+function buildExtraFont() {
+  const codes = Object.keys(GLYPHS).map(Number).sort((a, b) => a - b);
+  const glyphs = [{ advance: 2 * PX, g: glyphData([]) }, ...codes.map((c) => ({ code: c, advance: GLYPHS[c].advance * PX, g: glyphData(contoursOf(GLYPHS[c])) }))];
+  const n = glyphs.length;
+
+  const glyf = Buffer.concat(glyphs.map((x) => x.g.data));
+  const offsets = [0];
+  for (const x of glyphs) offsets.push(offsets.at(-1) + x.g.data.length);
+  const loca = Buffer.concat(offsets.map((o) => u32(o)));
+  const hmtx = Buffer.concat(glyphs.map((x) => Buffer.concat([u16(x.advance), i16(x.g.box[0])])));
+  const boxes = glyphs.filter((x) => x.g.points).map((x) => x.g.box);
+  const bbox = [Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])), Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))];
+
+  const head = Buffer.concat([
+    u32(0x00010000), u32(0x00010000), u32(0), u32(0x5f0f3cf5), u16(0x000b, EM),
+    Buffer.alloc(16), // created, modified
+    i16(bbox[0]), i16(bbox[1]), i16(bbox[2]), i16(bbox[3]),
+    u16(0, 8), i16(2), i16(1), i16(0), // macStyle, lowestRecPPEM, fontDirectionHint, indexToLocFormat (long), glyphDataFormat
+  ]);
+  const hhea = Buffer.concat([
+    u32(0x00010000), i16(896), i16(-128), i16(0), u16(Math.max(...glyphs.map((x) => x.advance))),
+    i16(0), i16(0), i16(bbox[2]), i16(1), i16(0), i16(0), Buffer.alloc(8), i16(0), u16(n),
+  ]);
+  const maxp = Buffer.concat([
+    u32(0x00010000), u16(n), u16(Math.max(...glyphs.map((x) => x.g.points))), u16(Math.max(...glyphs.map((x) => x.g.contours ?? 0))),
+    u16(0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0),
+  ]);
+  const os2 = Buffer.concat([
+    u16(4), i16(6 * PX), u16(400, 5, 0), // version, xAvgCharWidth, weight, width, fsType: installable
+    i16(512), i16(512), i16(0), i16(128), i16(512), i16(512), i16(0), i16(512), i16(64), i16(128), i16(0), // sub/superscript, strikeout
+    Buffer.alloc(10), // panose
+    u32(0x00000003), u32(0x00002000), u32(0), u32(0), // unicode ranges: Latin, Latin-1, general punctuation
+    Buffer.from('FRGN'), u16(0x0040, codes[0], codes.at(-1)), // fsSelection: regular
+    i16(896), i16(-128), i16(0), u16(1152, 128), // typo and win metrics, as in the main font
+    u32(0x00000001), u32(0), i16(640), i16(896), u16(0, 32, 1),
+  ]);
+  // cmap: format 4, one segment per character.
+  const segs = [...codes.map((c, i) => ({ start: c, end: c, delta: (i + 1 - c) & 0xffff })), { start: 0xffff, end: 0xffff, delta: 1 }];
+  const segX2 = segs.length * 2;
+  const searchRange = 2 * 2 ** Math.floor(Math.log2(segs.length));
+  const sub = Buffer.concat([
+    u16(4, 0, 0, segX2, searchRange, Math.floor(Math.log2(segs.length)), segX2 - searchRange),
+    u16(...segs.map((s) => s.end)), u16(0), u16(...segs.map((s) => s.start)), u16(...segs.map((s) => s.delta)), u16(...segs.map(() => 0)),
+  ]);
+  sub.writeUInt16BE(sub.length, 2);
+  const cmap = Buffer.concat([u16(0, 1), u16(3, 1), u32(12), sub]);
+  // name: Windows, US English, UTF-16BE.
+  const names = [
+    [0, 'Froggion'], [1, 'Froggion Pixel Extra'], [2, 'Regular'], [3, 'Froggion Pixel Extra 1.0'],
+    [4, 'Froggion Pixel Extra'], [5, 'Version 1.000'], [6, 'FroggionPixelExtra-Regular'],
+  ].map(([id, s]) => [id, Buffer.from(s, 'utf16le').swap16()]);
+  let strOffset = 0;
+  const records = names.map(([id, s]) => { const r = u16(3, 1, 0x409, id, s.length, strOffset); strOffset += s.length; return r; });
+  const name = Buffer.concat([u16(0, names.length, 6 + names.length * 12), ...records, ...names.map(([, s]) => s)]);
+  const post = Buffer.concat([u32(0x00030000), u32(0), i16(-128), i16(128), u32(0), u32(0), u32(0), u32(0), u32(0)]);
+
+  const tables = new Map(Object.entries({ 'OS/2': os2, cmap, glyf, head, hhea, hmtx, loca, maxp, name, post }));
+  return { flavor: 0x00010000, tables };
 }
 
 fs.mkdirSync(OUT, { recursive: true });
-for (const w of [500, 700]) {
-  const font = plainZero(readWoff(fs.readFileSync(path.join(SRC, `files/handjet-latin-${w}-normal.woff`))));
-  fs.writeFileSync(path.join(OUT, `handjet-latin-${w}.woff`), writeWoff(font));
-}
-const copies = { 'handjet-cyrillic-500-normal.woff2': 'handjet-cyrillic-500.woff2', 'handjet-cyrillic-700-normal.woff2': 'handjet-cyrillic-700.woff2', 'handjet-latin-ext-700-normal.woff2': 'handjet-latin-ext-700.woff2' };
-for (const [from, to] of Object.entries(copies)) fs.copyFileSync(path.join(SRC, 'files', from), path.join(OUT, to));
-fs.copyFileSync(path.join(SRC, 'LICENSE'), path.join(OUT, 'OFL.txt'));
+for (const f of fs.readdirSync(OUT)) if (/^handjet-/.test(f) || f === 'OFL.txt') fs.rmSync(path.join(OUT, f));
+fs.writeFileSync(path.join(OUT, 'pixel.woff'), writeWoff(readSfnt(fs.readFileSync(path.join(SRC, 'Minecraft_1.1.ttf')))));
+fs.writeFileSync(path.join(OUT, 'pixel-extra.woff'), writeWoff(buildExtraFont()));
+fs.writeFileSync(path.join(OUT, 'LICENSE.txt'), `pixel.woff — «Minecraft 1.1» by Pwnage_Block, ${fs.readFileSync(path.join(SRC, 'COPYRIGHT.txt'), 'utf8').trim()}.
+https://fontstruct.com/fontstructions/show/432966
+Licensed under Creative Commons Attribution-ShareAlike 3.0: https://creativecommons.org/licenses/by-sa/3.0/
+Repacked from TrueType to WOFF without changes to the glyphs or the names.
+
+pixel-extra.woff — signs missing from that font (₽ — – − « » → × … · ©), drawn for Froggion in the same pixel grid.
+`);
 console.log(fs.readdirSync(OUT).map((f) => `${f}: ${(fs.statSync(path.join(OUT, f)).size / 1024).toFixed(1)} KB`).join('\n'));

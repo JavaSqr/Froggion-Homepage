@@ -14,10 +14,13 @@ import { CameraRig } from './camera.js';
 import { dayAtmosphere, nightAtmosphere } from './atmosphere.js';
 import { nightLightmap } from './light.js';
 import { NameTags } from './nametags.js';
+import { lavaLayout } from './lava.js';
 
 ColorManagement.enabled = false;
 
 const DATA = `${import.meta.env.BASE_URL}data/`;
+// Lavafalls dissolve into the void below the island.
+const LAVA_FADE = { y0: 2, y1: 12 };
 const fetchJson = (u) => fetch(versioned(u)).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
 
 function pixelTexture(image) {
@@ -74,7 +77,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   for (const b of decoded.bots) for (const [x, y, z, s] of b.blocksInit) dynamic.push([x, y, z, s]);
   const view = createIslandView({
     island, extraStates: data.palette, dynamic, extraStatic: nightData.blocks, atlas, materials,
-    fade: { y0: 1, y1: 14 }, depthFade: { y0: 3, y1: 19, min: 0.12 }, lightmap: night ? nightLightmap() : null,
+    fade: { y0: 1, y1: 14 }, lavaFade: LAVA_FADE, depthFade: { y0: 3, y1: 19, min: 0.12 }, lightmap: night ? nightLightmap() : null,
   });
 
   const renderer = new WebGLRenderer({ antialias: !lite, alpha: true, powerPreference: lite ? 'low-power' : 'high-performance' });
@@ -116,9 +119,10 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   for (const t of breakTextures) if (blockImages.has(t)) particleImages.set(t, blockImages.get(t));
   const particles = new Particles({ images: particleImages, max: lite ? 400 : 1500, isSolid: solidAt, isWater: waterAt });
   scene.add(particles.points);
+  const lava = lavaLayout(view, LAVA_FADE);
   const atmosphere = night
-    ? nightAtmosphere(scene, { center, lite, heroPose: rig.heroPose(0), images, emitters: view.emitters, particles, occludes })
-    : dayAtmosphere(scene, { center, lite });
+    ? nightAtmosphere(scene, { center, lite, heroPose: rig.heroPose(0), images, emitters: view.emitters, lava, particles, occludes })
+    : dayAtmosphere(scene, { center, lite, lava, particles });
   particles.dim = atmosphere.particleDim;
 
   const assets = {
