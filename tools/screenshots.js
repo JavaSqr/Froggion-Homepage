@@ -27,14 +27,14 @@ export const SHOTS = [
   { name: 'en-first-screen', viewport: [1440, 900], url: '/en/' },
   // Without motion (?still, or reduced motion with motion "system"): poster only, the card opens from the bot list.
   { name: 'reduced-motion-card', viewport: [1440, 900], url: '/?still', reducedMotion: true, listCard: 'FroggyFarmer' },
-  // The rest of the page. `scroll`: a selector scrolled to the top, or a script returning scrollY.
+  // The rest of the page. `scroll`: a selector scrolled to the top (`center`: to the middle), or a script returning scrollY.
   { name: 'jobs-intro', viewport: [1440, 900], url: '/', scroll: '#jobs-title', offset: -300 },
-  { name: 'jobs-slayer', viewport: [1440, 900], url: '/', scroll: '#bot-slayer' },
-  { name: 'jobs-flight', viewport: [1440, 900], url: '/', scroll: () => { const a = document.querySelector('#bot-slayer'), b = document.querySelector('#bot-fisherman'); return (a.offsetTop + b.offsetTop) / 2 + a.offsetParent.offsetTop; } },
-  { name: 'jobs-fisherman', viewport: [1440, 900], url: '/', scroll: '#bot-fisherman' },
-  { name: 'jobs-miner', viewport: [1440, 900], url: '/', scroll: '#bot-miner' },
-  { name: 'jobs-farmer', viewport: [1440, 900], url: '/', scroll: '#bot-farmer' },
-  { name: 'jobs-mobile-fisherman', viewport: [390, 844], url: '/', mobile: true, scroll: '#bot-fisherman' },
+  { name: 'jobs-slayer', viewport: [1440, 900], url: '/', scroll: '#bot-slayer', center: true },
+  { name: 'jobs-flight', viewport: [1440, 900], url: '/', scroll: () => { const c = (s) => { const r = document.querySelector(s).getBoundingClientRect(); return r.top + window.scrollY + r.height / 2; }; return (c('#bot-slayer') + c('#bot-fisherman')) / 2 - window.innerHeight / 2; } },
+  { name: 'jobs-fisherman', viewport: [1440, 900], url: '/', scroll: '#bot-fisherman', center: true },
+  { name: 'jobs-miner', viewport: [1440, 900], url: '/', scroll: '#bot-miner', center: true },
+  { name: 'jobs-farmer', viewport: [1440, 900], url: '/', scroll: '#bot-farmer', center: true },
+  { name: 'jobs-mobile-fisherman', viewport: [390, 844], url: '/', mobile: true, scroll: '#bot-fisherman', center: true },
   { name: 'jobs-reduced-motion', viewport: [1440, 900], url: '/?still', reducedMotion: true, scroll: '#bot-slayer' },
   // «Подробнее» on the Fisherman's card: straight flight to him, mid-way and on arrival.
   { name: 'jump-midway', viewport: [1440, 900], url: '/', settle: 0.7, page: async (p) => {
@@ -98,10 +98,11 @@ try {
     if (shot.clean) await page.addStyleTag({ content: '.hero__copy, .scene-hint, .site-header { visibility: hidden !important; }' });
     const scrollTo = async () => {
       if (!shot.scroll) return;
-      await page.evaluate(({ sel, fn, offset }) => {
-        const y = fn ? (0, eval)(`(${fn})`)() : document.querySelector(sel).getBoundingClientRect().top + window.scrollY;
+      await page.evaluate(({ sel, fn, offset, center }) => {
+        const r = sel && document.querySelector(sel).getBoundingClientRect();
+        const y = fn ? (0, eval)(`(${fn})`)() : r.top + window.scrollY + (center ? (r.height - window.innerHeight) / 2 : 0);
         window.scrollTo({ top: y + offset, behavior: 'instant' });
-      }, { sel: typeof shot.scroll === 'string' ? shot.scroll : null, fn: typeof shot.scroll === 'function' ? shot.scroll.toString() : null, offset: shot.offset ?? 0 });
+      }, { sel: typeof shot.scroll === 'string' ? shot.scroll : null, fn: typeof shot.scroll === 'function' ? shot.scroll.toString() : null, offset: shot.offset ?? 0, center: !!shot.center });
       await page.waitForTimeout(150);
     };
     if (shot.static || shot.reducedMotion) {

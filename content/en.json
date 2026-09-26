@@ -18,7 +18,10 @@
     "menu": "Menu",
     "language": "Language",
     "docs": "Documents",
-    "skip": "Skip to content"
+    "skip": "Skip to content",
+    "eco": "Eco",
+    "ecoHint": "Eco mode: no animations, less load",
+    "ecoMenu": "Eco mode: no animations"
   },
   "hero": {
     "title": "AFK bots that keep working while you rest",
@@ -40,26 +43,25 @@
   "bots": {
     "FroggyMiner": {
       "name": "Miner Frog",
-      "description": "Loves digging cobblestone, ores and diamonds, but most of all croak-quartz. For fun he goes fishing with Fisher Frog, catching fish and sipping ribbit root beer."
+      "description": "Loves digging cobblestone, ores and diamonds, but most of all quartz. For fun he goes fishing with Fisher Frog, catching fish and sipping root beer."
     },
     "FroggyFisherman": {
       "name": "Fisher Frog",
-      "description": "Can sit by the pond with a rod for hours. Catches fish, treasure and old boots, and dreams of an a-croak-rium of his own."
+      "description": "Can sit by the pond with a rod for hours. Catches fish, treasure and old boots, and dreams of an aquarium of his own."
     },
     "FroggyFarmer": {
       "name": "Farmer Frog",
-      "description": "Plants wheat, carrots and potatoes and harvests right on schedule. In winter he pickles cucumbers and croak-ferments cabbage."
+      "description": "Plants wheat, carrots and potatoes and harvests right on schedule. In winter he pickles cucumbers and ferments cabbage."
     },
     "FroggySlayer": {
       "name": "Warrior Frog",
-      "description": "Guards the island from creepers and never misses. Says the best defense is a well-croak-ordinated offense."
+      "description": "Guards the island from creepers and never misses. Says the best defense is a good offense."
     }
   },
   "jobs": {
     "title": "What the bots do",
     "hint": "Scroll and the camera flies around the island.",
     "lead": "Everything you see is a recording of real bots on a server.",
-    "worker": "Working",
     "attack": {
       "title": "Mob grinding",
       "text": "The bot hits mobs at your farm around the clock. Experience and loot pile up while you are busy with other things.",

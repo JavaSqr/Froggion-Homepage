@@ -57,6 +57,9 @@ function buildParticleAtlas(images, size = 512) {
   return { tex, rect: (n) => rects.get(n) };
 }
 
+const NO_RECT = [0, 0, 0, 0];
+const ATTRIBUTES = [['position', 3], ['size', 1], ['color', 4], ['rect', 4]];
+
 export class Particles {
   constructor({ images, max = 1200, isSolid = () => false, isWater = () => false }) {
     this.atlas = buildParticleAtlas(images);
@@ -214,16 +217,24 @@ export class Particles {
         const idx = p.frameMode === 'age' ? Math.min(p.frames.length - 1, Math.floor(((p.age + pt) * p.frames.length) / p.life)) : p.age % p.frames.length;
         name = p.frames[idx];
       }
-      const r = p.rectOverride ?? this.atlas.rect(name) ?? [0, 0, 0, 0];
-      this.rect.set([r[0], r[1], r[2], r[3]], i * 4);
+      const r = p.rectOverride ?? this.atlas.rect(name) ?? NO_RECT;
+      this.rect[i * 4] = r[0]; this.rect[i * 4 + 1] = r[1]; this.rect[i * 4 + 2] = r[2]; this.rect[i * 4 + 3] = r[3];
       const k = p.bright ? 1 : this.dim;
-      this.color.set([p.rgb[0] * k, p.rgb[1] * k, p.rgb[2] * k, p.alpha], i * 4);
+      this.color[i * 4] = p.rgb[0] * k; this.color[i * 4 + 1] = p.rgb[1] * k; this.color[i * 4 + 2] = p.rgb[2] * k; this.color[i * 4 + 3] = p.alpha;
       const age = (p.age + pt) / p.life;
       this.size[i] = p.shrink ? p.size * (1 - age * age * 0.5) : p.size;
     }
     const g = this.geometry;
     g.setDrawRange(0, n);
-    for (const a of ['position', 'size', 'color', 'rect']) g.attributes[a].needsUpdate = true;
+    if (!n && !this.drawn) return;
+    this.drawn = n;
+    // Only the live part of the buffers goes to the GPU.
+    for (const [a, k] of ATTRIBUTES) {
+      const attr = g.attributes[a];
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, n * k);
+      attr.needsUpdate = true;
+    }
   }
 }
 

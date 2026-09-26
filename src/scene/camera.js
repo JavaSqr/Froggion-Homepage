@@ -8,6 +8,8 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 // Share of each leg of the flight during which the camera holds still at a stop.
 const HOLD = 0.2;
+// How fast the camera catches up with the scroll, per second.
+const FOLLOW = 4;
 // On the page the stations are framed a little wider than in the close-up stills: the text card takes a side.
 const PATH_PULL = 1.3;
 
@@ -51,7 +53,14 @@ export class CameraRig {
     this.flight = { s: -1, goal: -1 };
     this.leap = null;
     this.centered = false;
+    // Eco mode: no sway and no glides, every change of view is immediate.
+    this.still = false;
     this.hero(false);
+  }
+
+  // Whether the camera is on its way somewhere (the scene then draws at the full frame rate).
+  get moving() {
+    return !!(this.transition || this.leap) || this.flight.s !== this.flight.goal;
   }
 
   resize(w, h) {
@@ -157,10 +166,16 @@ export class CameraRig {
   }
 
   update(dt) {
+    if (this.still) {
+      dt = 0;
+      this.flight.s = this.flight.goal;
+      this.transition = this.leap = null;
+    }
     this.time += dt;
-    // The camera follows the scroll with a little smoothing (touch scrolling comes in bursts).
+    // The camera follows the scroll with some inertia: touch scrolling comes in bursts, and a wheel notch
+    // should nudge the flight, not jerk it.
     const f = this.flight;
-    f.s += (f.goal - f.s) * (1 - Math.exp(-dt * 8));
+    f.s += (f.goal - f.s) * (1 - Math.exp(-dt * FOLLOW));
     if (Math.abs(f.goal - f.s) < 1e-4) f.s = f.goal;
     let g = this.goal();
     if (this.leap && this.mode === 'path') {

@@ -57,6 +57,9 @@ export function renderExtras(root, { base = '/' } = {}) {
   };
 }
 
+// Eco mode (src/ui/eco.js) applied before the first paint, so nothing starts moving and then stops.
+const ECO_SCRIPT = "try{if(localStorage.getItem('froggion-eco')==='1')document.documentElement.classList.add('eco')}catch(e){}";
+
 // Link preview image, one per language (tools/render-poster.js).
 const ogImage = ({ lang, config }) => `${config.siteUrl}/${lang.path === '/' ? 'og.jpg' : `og-${lang.code}.jpg`}`;
 
@@ -96,6 +99,7 @@ function head({ t, lang, config, base }, { title = t.meta.title, description = t
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="${base}site.webmanifest">${preload}
     <link rel="stylesheet" href="/src/styles/main.css">
+    <script>${ECO_SCRIPT}</script>
     <script type="module" src="/src/main.js"></script>
   </head>`;
 }
@@ -113,13 +117,19 @@ function header(ctx, prefix = '') {
       </a>
       <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-nav" aria-label="${esc(t.nav.menu)}"><span aria-hidden="true"></span></button>
       <nav class="site-nav" id="site-nav" aria-label="${esc(t.nav.label)}">
-        <ul>${nav.map(([k, href]) => `<li><a href="${prefix}${href}">${esc(t.nav[k])}</a></li>`).join('')}</ul>
+        <ul>${nav.map(([k, href]) => `<li><a href="${prefix}${href}">${esc(t.nav[k])}</a></li>`).join('')}<li class="site-nav__eco">${ecoToggle(t.nav.ecoMenu, t.nav.ecoHint)}</li></ul>
       </nav>
       <div class="header-actions">
+        ${ecoToggle(t.nav.eco, t.nav.ecoHint)}
         <div class="lang-switch" role="group" aria-label="${esc(t.nav.language)}">${langs}</div>
         <a class="btn btn--ghost btn--small" href="${esc(link(ctx, 'panelUrl'))}">${esc(t.nav.login)}</a>
       </div>
     </header>`;
+}
+
+// The eco switch (src/ui/eco.js): in the header bar, and inside the menu on the narrowest phones.
+function ecoToggle(label, hint) {
+  return `<button type="button" class="eco-toggle" aria-pressed="false" title="${esc(hint)}">${pixelIcon('leaf', 16, 'eco-toggle__icon')}<span>${esc(label)}</span></button>`;
 }
 
 function botsData({ t, bots, base }) {
@@ -191,7 +201,7 @@ function jobs({ t, bots, config }) {
         const job = t.jobs[j];
         return `<article class="job" id="bot-${b.slug}" data-bot="${b.nick}" data-job="${j}" aria-labelledby="job-${j}">
         <div class="job__card pixel-box">
-          <p class="job__worker">${esc(t.jobs.worker)}: ${esc(t.bots[b.nick].name)}</p>
+          <p class="job__worker">${esc(t.bots[b.nick].name)}</p>
           <h3 id="job-${j}">${esc(job.title)}</h3>
           <p>${esc(job.text)}</p>
           <ul class="ticks">${job.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
@@ -211,10 +221,13 @@ const ICONS = {
   auction: ['....####....', '..##....##..', '..#.####.#..', '..##....##..', '..#.####.#..', '..##....##..', '..#.####.#..', '..##....##..', '..#.####.#..', '..##....##..', '...######...', '............'],
   pickaxe: ['...######...', '.##......##.', '#....##....#', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '.....##.....', '............'],
   scripts: ['####........', '#..#........', '####........', '.#..........', '.#..####....', '.###...#....', '....####....', '.....#......', '.....#..####', '.....###...#', '........####', '............'],
+  // 8×8, for 16px: the eco switch.
+  leaf: ['.....###', '...#####', '..###.##', '.###.###', '.##.####', '.#.####.', '.#####..', '#.......'],
 };
 
-function pixelIcon(name, size = 36) {
+function pixelIcon(name, size = 36, cls = 'pixel-icon') {
   const rows = ICONS[name] ?? ICONS.afk;
+  const n = rows.length;
   const rects = [];
   rows.forEach((row, y) => {
     let x = 0;
@@ -226,7 +239,7 @@ function pixelIcon(name, size = 36) {
       x += w;
     }
   });
-  return `<svg class="pixel-icon" viewBox="0 0 12 12" width="${size}" height="${size}" shape-rendering="crispEdges" aria-hidden="true" fill="currentColor">${rects.join('')}</svg>`;
+  return `<svg class="${cls}" viewBox="0 0 ${n} ${n}" width="${size}" height="${size}" shape-rendering="crispEdges" aria-hidden="true" fill="currentColor">${rects.join('')}</svg>`;
 }
 
 function features({ t }) {
@@ -355,7 +368,7 @@ function pricing(ctx) {
         </div>
         <form class="calc pixel-box" data-calc aria-labelledby="calc-title">
           <h3 id="calc-title">${esc(p.calc.title)}</h3>
-          <div class="calc__row">
+          <div class="calc__row calc__row--inline">
             <label for="calc-bots">${esc(p.calc.bots)}</label>
             <div class="calc__bots"><input id="calc-bots" name="bots" type="range" min="1" max="50" value="1"><input name="botsNumber" type="number" min="1" max="500" value="1" inputmode="numeric" aria-label="${esc(p.calc.bots)}"></div>
           </div>
@@ -369,12 +382,16 @@ function pricing(ctx) {
             <label class="check"><input type="checkbox" name="promo"><span>${esc(p.calc.promo)} <small>−${Math.round(cfg.promoDiscount * 100)}%</small></span></label>
             <label class="check"><input type="checkbox" name="loyalty"><span>${esc(p.calc.loyalty)} <small>−${Math.round(cfg.loyaltyDiscount * 100)}%, ${esc(p.calc.loyaltyHint)}</small></span></label>
           </fieldset>
-          <dl class="calc__result" aria-live="polite">
-            <div><dt>${esc(p.calc.perBot)}</dt><dd data-out="perBot">${money(pricePerBot(cfg, 1, cfg.monthDays))}</dd></div>
-            <div><dt>${esc(p.calc.save)}</dt><dd data-out="save">${money(0)}</dd></div>
-            <div class="calc__total"><dt>${esc(p.calc.total)}</dt><dd data-out="total">${money(pricePerBot(cfg, 1, cfg.monthDays))}</dd></div>
-          </dl>
-          <a class="btn btn--primary" href="${esc(link(ctx, 'panelUrl'))}">${esc(p.calc.cta)}</a>
+          <div class="calc__result" aria-live="polite">
+            <dl class="calc__lines">
+              <div><dt>${esc(p.calc.perBot)}</dt><dd data-out="perBot">${money(pricePerBot(cfg, 1, cfg.monthDays))}</dd></div>
+              <div><dt>${esc(p.calc.save)}</dt><dd data-out="save">${money(0)}</dd></div>
+            </dl>
+            <div class="calc__foot">
+              <dl class="calc__total"><div><dt>${esc(p.calc.total)}</dt><dd data-out="total">${money(pricePerBot(cfg, 1, cfg.monthDays))}</dd></div></dl>
+              <a class="btn btn--primary" href="${esc(link(ctx, 'panelUrl'))}">${esc(p.calc.cta)}</a>
+            </div>
+          </div>
           <noscript><p class="note">${esc(p.calc.noscript)}</p></noscript>
           <script type="application/json" data-calc-config>${json(calcData)}</script>
         </form>

@@ -22,7 +22,8 @@ function scrollableParent(el) {
   return null;
 }
 
-export function initSmoothWheel() {
+// enabled(): checked on every notch (eco mode turns the glide off).
+export function initSmoothWheel({ enabled = () => true } = {}) {
   let target = 0, current = 0, last = 0, active = false;
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
 
@@ -40,7 +41,7 @@ export function initSmoothWheel() {
   }
 
   addEventListener('wheel', (e) => {
-    if (e.defaultPrevented || !isMouseWheel(e) || scrollableParent(e.target)) return;
+    if (e.defaultPrevented || !enabled() || !isMouseWheel(e) || scrollableParent(e.target)) return;
     e.preventDefault();
     if (!active) current = target = window.scrollY;
     const step = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;

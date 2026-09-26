@@ -3,11 +3,14 @@ import { initCalculator } from './ui/calculator.js';
 import { initChats } from './ui/chats.js';
 import { initFlyover } from './ui/flyover.js';
 import { initSmoothWheel } from './ui/smooth-wheel.js';
+import { eco, initEcoToggle } from './ui/eco.js';
+import { initSectionSnap } from './ui/section-snap.js';
 
 const layer = document.querySelector('[data-scene]');
 const hero = document.querySelector('.hero');
 const jobs = document.querySelector('.jobs');
 const botsData = JSON.parse(document.getElementById('bots-data')?.textContent || '[]');
+initEcoToggle();
 const cards = createCards({ bots: botsData, root: hero });
 const params = new URLSearchParams(location.search);
 const body = document.body;
@@ -51,7 +54,8 @@ async function boot() {
   body.classList.add('scene-flight');
   try {
     const { startScene } = await import('./scene/index.js');
-    const scene = await startScene({ layer, bots: botsData, lite, variant, debug: params.has('debug') });
+    const scene = await startScene({ layer, bots: botsData, lite, variant, debug: params.has('debug'), eco: eco.on });
+    eco.onChange((on) => scene.setEco(on));
     cards.attachScene(scene);
     if (!body.classList.contains('poster-mode')) initFlyover({ scene, section: jobs });
     body.classList.add('scene-live');
@@ -105,4 +109,10 @@ if (header && menuButton) {
 
 initCalculator(document.querySelector('[data-calc]'));
 initChats(document.querySelector('[data-chats]'), { reducedMotion: still });
-if (!still) initSmoothWheel();
+if (!still) initSmoothWheel({ enabled: () => !eco.on });
+if (!still) {
+  initSectionSnap({
+    sections: ['#features', '#notifications', '#panel', '#pricing', '#partners', '#faq'].map((id) => document.querySelector(id)),
+    enabled: () => !eco.on,
+  });
+}

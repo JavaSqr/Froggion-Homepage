@@ -3,8 +3,9 @@
 //   night: block light baked into the island (lanterns, torches, lava), moonlight with shadows,
 //          stars, a moon, warm glows around the lights, flames and smoke on torches.
 import {
-  AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, DirectionalLight, Fog, HemisphereLight,
-  LinearFilter, Points, PointsMaterial, Sprite, SpriteMaterial, Vector3,
+  AdditiveBlending, AmbientLight, BufferAttribute, BufferGeometry, Color, DirectionalLight, Fog, HemisphereLight,
+  InstancedBufferAttribute, InstancedBufferGeometry, LinearFilter, Mesh, PlaneGeometry, Points, PointsMaterial,
+  ShaderMaterial, Sprite, SpriteMaterial, Vector3,
 } from 'three';
 import { spriteTexture } from './items.js';
 import { lavaTicker } from './lava.js';
@@ -70,6 +71,44 @@ const GLOW = {
 };
 const smoothstep = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+// All glows in one draw call: camera-facing quads, each with its own centre, size and tint
+// (the tint carries the opacity, which is the same thing under additive blending).
+function glowBatch(texture, max) {
+  const g = new InstancedBufferGeometry().copy(new PlaneGeometry(1, 1));
+  const center = new InstancedBufferAttribute(new Float32Array(max * 3), 3);
+  const size = new InstancedBufferAttribute(new Float32Array(max), 1);
+  const tint = new InstancedBufferAttribute(new Float32Array(max * 3), 3);
+  g.setAttribute('center', center);
+  g.setAttribute('size', size);
+  g.setAttribute('tint', tint);
+  g.instanceCount = 0;
+  const mesh = new Mesh(g, new ShaderMaterial({
+    uniforms: { map: { value: texture } },
+    vertexShader: `attribute vec3 center; attribute float size; attribute vec3 tint; varying vec2 vUv; varying vec3 vTint;
+      void main() { vUv = uv; vTint = tint; vec4 mv = modelViewMatrix * vec4(center, 1.0); mv.xy += position.xy * size; gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform sampler2D map; varying vec2 vUv; varying vec3 vTint;
+      void main() { vec4 t = texture2D(map, vUv); gl_FragColor = vec4(t.rgb * vTint, t.a); }`,
+    blending: AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
+  }));
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 10;
+  let n = 0;
+  return {
+    mesh,
+    begin() { n = 0; },
+    add(pos, s, color, opacity) {
+      center.setXYZ(n, pos.x, pos.y, pos.z);
+      size.setX(n, s);
+      tint.setXYZ(n, color.r * opacity, color.g * opacity, color.b * opacity);
+      n++;
+    },
+    end() {
+      g.instanceCount = n;
+      for (const a of [center, size, tint]) a.needsUpdate = true;
+    },
+  };
+}
+
 export function nightAtmosphere(scene, { center, lite, heroPose, images, emitters, lava, particles, occludes }) {
   // The baked island colours already carry the light, so the base light is plain white.
   scene.add(new AmbientLight(0xffffff, Math.PI));
@@ -97,25 +136,16 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
 
   const glows = [];
   const others = emitters.filter((e) => e[4] !== 'lava');
-  const sprite = (size, color) => {
-    const s = new Sprite(new SpriteMaterial({ map: glowTex, color, blending: AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, fog: false }));
-    s.scale.set(size, size, 1);
-    s.renderOrder = 10;
-    scene.add(s);
-    return s;
-  };
+  const coreColor = new Color(0xffe3a8);
   const addGlow = (x, y, z, kind, strength = 1) => {
     const g = GLOW[kind] ?? GLOW.lantern;
-    const pos = new Vector3(x, y, z);
-    const halo = sprite(g.size, g.color);
-    const core = g.core ? sprite(g.core, 0xffe3a8) : null;
-    halo.position.copy(pos);
-    core?.position.copy(pos);
-    glows.push({ pos, halo, core, base: g.opacity * strength, flicker: 0, vis: 0 });
+    glows.push({ pos: new Vector3(x, y, z), size: g.size, core: g.core, color: new Color(g.color), base: g.opacity * strength, flicker: 0, vis: 0 });
   };
   for (const [x, y, z, , kind] of others) addGlow(x + 0.5, y + (GLOW[kind] ?? GLOW.lantern).y, z + 0.5, kind);
   // Lava: one glow over a pool, a row of them down each lavafall.
   for (const g of lava.glows) addGlow(...g.at, 'lava', g.pool ? 1 : 0.8 * g.strength);
+  const batch = glowBatch(glowTex, Math.max(1, glows.length * 2));
+  scene.add(batch.mesh);
   const lavaTick = lavaTicker(lava, particles);
 
   const right = new Vector3(), up = new Vector3(), probe = new Vector3();
@@ -144,6 +174,7 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
       right.setFromMatrixColumn(camera.matrixWorld, 0);
       up.setFromMatrixColumn(camera.matrixWorld, 1);
       const k = dt === 0 ? 1 : 1 - Math.exp(-dt * 10);
+      batch.begin();
       for (const g of glows) {
         if (check && occludes) {
           let seen = 0;
@@ -157,10 +188,11 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
         g.seen = true;
         const near = smoothstep(0.8, 3.5, camera.position.distanceTo(g.pos));
         const o = Math.max(0, g.base * g.vis * near * (1 + g.flicker * 1.5));
-        g.halo.material.opacity = o;
-        g.halo.visible = o > 0.003;
-        if (g.core) { g.core.material.opacity = Math.min(1, o * 1.6); g.core.visible = g.halo.visible; }
+        if (o <= 0.003) continue;
+        batch.add(g.pos, g.size, g.color, o);
+        if (g.core) batch.add(g.pos, g.core, coreColor, Math.min(1, o * 1.6));
       }
+      batch.end();
     },
   };
 }

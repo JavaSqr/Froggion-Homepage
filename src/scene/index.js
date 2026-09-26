@@ -34,7 +34,8 @@ function pixelTexture(image) {
 }
 
 // visibleWith: elements that leave the fixed scene layer in sight; the loop pauses when none is on screen.
-export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day', visibleWith = [layer] }) {
+// eco: the scene stands still and draws a frame only when the view changes (see setEco).
+export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day', visibleWith = [layer], eco = false }) {
   const night = variant === 'night';
   const [island, data, nightData] = await Promise.all([
     fetchJson(`${DATA}island.json`), fetchJson(`${DATA}scene.json`),
@@ -86,6 +87,8 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
+  // Error checks make the browser wait for each shader to finish compiling.
+  renderer.debug.checkShaderErrors = debug;
   renderer.domElement.setAttribute('aria-hidden', 'true');
   layer.appendChild(renderer.domElement);
 
@@ -134,12 +137,17 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   const world = new World({ scene, island: view, decoded, meta, assets, particles, items: new ItemFactory(images), lite, lit: night });
   const tags = new NameTags(layer, world.bots, occludes);
 
+  // Loop state (the loop itself is below).
+  const listeners = new Set();
+  let running = false, frozen = false, last = 0, raf = 0, pAcc = 0, clock = 0, onScreen = true, lastRender = 0, pending = 0;
+
   let width = 0, height = 0;
   const resize = () => {
     width = layer.clientWidth; height = layer.clientHeight;
     renderer.setSize(width, height, false);
     rig.resize(width, height);
     particles.setViewport(height, camera.fov);
+    invalidate();
   };
   resize();
   const ro = new ResizeObserver(resize);
@@ -162,22 +170,45 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     const rect = renderer.domElement.getBoundingClientRect();
     return { x: rect.left + ((v.x + 1) / 2) * rect.width, y: rect.top + ((1 - v.y) / 2) * rect.height, visible: v.z < 1 && v.z > -1 };
   }
+  // Where a bot and its name tag are on screen, in client pixels.
+  const corner = new Vector3();
+  function bounds(nick) {
+    const b = world.box(nick);
+    if (!b) return null;
+    const rect = renderer.domElement.getBoundingClientRect();
+    let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity, visible = true;
+    for (let i = 0; i < 8; i++) {
+      corner.set(b.x + (i & 1 ? 0.5 : -0.5), b.y + (i & 2 ? b.height : 0), b.z + (i & 4 ? 0.5 : -0.5)).project(camera);
+      if (corner.z > 1 || corner.z < -1) visible = false;
+      const x = rect.left + ((corner.x + 1) / 2) * rect.width, y = rect.top + ((1 - corner.y) / 2) * rect.height;
+      left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+    const tag = tags.rect(nick);
+    if (tag) {
+      left = Math.min(left, rect.left + tag.x);
+      right = Math.max(right, rect.left + tag.x + tag.w);
+      top = Math.min(top, rect.top + tag.y);
+    }
+    return { left, top, right, bottom, visible };
+  }
   const highlighted = new Set();
   function highlight(nicks) {
     const set = new Set(nicks.filter(Boolean));
     for (const b of world.bots) b.model.setOutline(set.has(b.nick));
     highlighted.clear();
     for (const n of set) highlighted.add(n);
+    invalidate();
   }
 
-  // Main loop, paused off screen and in hidden tabs.
-  const listeners = new Set();
-  let running = false, frozen = false, last = 0, raf = 0, pAcc = 0, clock = 0, onScreen = true, lastRender = 0;
-  const frameInterval = lite ? 1000 / 30 : 0;
+  // Main loop, paused off screen, in hidden tabs and in eco mode. The island moves slowly, so it is drawn
+  // 30 times a second; while the camera flies, 60 (never more, even on 120-144 Hz screens).
+  const FPS = { idle: 30, moving: lite ? 30 : 60 };
   function frame(now) {
     raf = requestAnimationFrame(frame);
-    if (frameInterval && now - lastRender < frameInterval - 2) return;
-    lastRender = now;
+    const interval = 1000 / (rig.moving ? FPS.moving : FPS.idle);
+    if (now - lastRender < interval - 2) return;
+    // Kept on the frame grid, so 144 Hz averages out to 60 instead of dropping to 48; after a pause, from now.
+    lastRender = now - lastRender > interval * 2 ? now : lastRender + interval;
     // rAF time can be a little older than the moment the loop was started.
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
@@ -192,25 +223,35 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     rig.update(dt);
     atmosphere.update(camera, dt);
   }
-  function draw() {
+  function draw(exact = false) {
     world.render(camera);
     particles.render(pAcc);
     view.update(clock);
     renderer.render(scene, camera);
-    tags.update(camera, width, height);
+    tags.update(camera, width, height, exact);
     for (const fn of listeners) fn();
   }
   // A frame for the current view at once, glows included (stills and jumps while paused).
   function still() {
     atmosphere.update(camera, 0);
-    draw();
+    draw(true);
+  }
+  // While the loop is stopped (eco mode), one frame on the next animation frame for a changed view.
+  function invalidate() {
+    if (running || pending) return;
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      if (running) return;
+      rig.update(0);
+      still();
+    });
   }
   function setRunning(on) {
     if (on === running) return;
     running = on;
     if (on) { last = performance.now(); raf = requestAnimationFrame(frame); } else cancelAnimationFrame(raf);
   }
-  const update = () => setRunning(onScreen && !document.hidden && !frozen);
+  const update = () => setRunning(onScreen && !document.hidden && !frozen && !eco);
   document.addEventListener('visibilitychange', update);
   const seen = new Map();
   const io = new IntersectionObserver((entries) => {
@@ -220,8 +261,9 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   }, { threshold: 0 });
   for (const el of visibleWith) if (el) io.observe(el);
   // Start mid-loop so the bots are already busy on the first frame.
+  rig.still = eco;
   step(0.05);
-  draw();
+  still();
   update();
   layer.classList.add('is-live');
 
@@ -232,6 +274,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     bots: world.bots.map((b) => b.nick),
     pick,
     anchor,
+    bounds,
     highlight,
     onFrame(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     focusBot(nick, animate = true) { rig.focus(nick, animate); still(); },
@@ -239,8 +282,16 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     heroView(animate = true) { rig.hero(animate); still(); },
     // Scroll flight: the stops in order, then progress along them (-1 = first screen).
     setPath(nicks) { rig.setPath(nicks); },
-    fly(s, instant = false) { rig.fly(s, instant); if (instant && !running) still(); },
-    jump(index) { rig.jump(index); },
+    fly(s, instant = false) { rig.fly(s, instant); invalidate(); },
+    jump(index) { if (eco) rig.fly(index, true); else rig.jump(index); invalidate(); },
+    // Eco mode: the bots, particles and camera stand still; a frame is drawn only when the view changes.
+    setEco(on) {
+      eco = on;
+      rig.still = on;
+      if (on) particles.clear();
+      update();
+      invalidate();
+    },
     // Stills of the stations are framed in the middle, without the first screen's shift.
     centerView(on = true) { rig.centered = on; rig.resize(width, height); still(); },
     // Runs the simulation for n seconds without waiting for frames (screenshots).

@@ -1,9 +1,13 @@
 // Bot card: opens on hover (mouse), click/tap pins it, Esc or a click elsewhere closes it.
-// Anchored to a screen point above the bot's head; without a live scene, to the list button.
+// It stands beside the bot and its name tag, never over them; without a live scene, under the list button.
+import { eco } from './eco.js';
+
 const HIDE_DELAY = 300;
 const MARGIN = 12;
+const GAP = 12;
 // How fast the card catches up with the bot, per second: it glides instead of shaking with every step.
 const FOLLOW = 16;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export function createCards({ bots, root }) {
   const card = root?.querySelector('.bot-card');
@@ -31,6 +35,7 @@ export function createCards({ bots, root }) {
   let shown = null;
   let glideFrame = 0;
   let lastGlide = 0;
+  let side = null;
 
   function fill(nick) {
     const b = byNick.get(nick);
@@ -50,7 +55,7 @@ export function createCards({ bots, root }) {
   function open(nick, opts = {}) {
     if (!byNick.has(nick)) return;
     clearTimeout(hideTimer);
-    if (current !== nick) { fill(nick); pinned = false; }
+    if (current !== nick) { fill(nick); pinned = false; side = null; }
     current = nick;
     source = opts.source ?? 'scene';
     if (opts.pinned) pinned = true;
@@ -64,7 +69,7 @@ export function createCards({ bots, root }) {
     if (!current) return;
     current = null;
     pinned = false;
-    shown = goal = null;
+    shown = goal = side = null;
     card.hidden = true;
     syncHighlight();
     if (restoreFocus && trigger) trigger.focus();
@@ -79,15 +84,33 @@ export function createCards({ bots, root }) {
     }, HIDE_DELAY);
   }
 
-  function anchorPoint() {
+  // Above the bot if there is room, else to its right, left or below. The side sticks while it still fits,
+  // so the card does not hop around as the bot walks.
+  function beside(b, w, h, box) {
+    const cx = (b.left + b.right) / 2, cy = (b.top + b.bottom) / 2;
+    const x = clamp(cx - w / 2, box.left, box.right - w);
+    const y = clamp(cy - h / 2, box.top, box.bottom - h);
+    const spots = {
+      above: { x, y: b.top - GAP - h },
+      right: { x: b.right + GAP, y },
+      left: { x: b.left - GAP - w, y },
+      below: { x, y: b.bottom + GAP },
+    };
+    const fits = (p) => p.x >= box.left && p.y >= box.top && p.x + w <= box.right && p.y + h <= box.bottom;
+    for (const s of [side, 'above', 'right', 'left', 'below']) if (s && fits(spots[s])) return { ...spots[s], side: s };
+    // No room anywhere around it (a close-up): above, kept on screen.
+    return { x, y: clamp(spots.above.y, box.top, box.bottom - h), side: null };
+  }
+
+  function target(w, h, box) {
     if (scene && source !== 'list-static') {
-      const a = scene.anchor(current);
-      if (a?.visible) return a;
+      const b = scene.bounds(current);
+      if (b?.visible) return beside(b, w, h, box);
     }
-    const btn = listButtons.find((b) => b.dataset.bot === current);
+    const btn = listButtons.find((l) => l.dataset.bot === current);
     if (!btn) return null;
     const r = btn.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.bottom + 12, below: true };
+    return { x: clamp(r.left + r.width / 2 - w / 2, box.left, box.right - w), y: clamp(r.bottom + GAP, box.top, box.bottom - h), side: null };
   }
 
   // Device-pixel steps: smooth on dense screens, no blurry half pixels.
@@ -110,17 +133,15 @@ export function createCards({ bots, root }) {
 
   function position(snap = false) {
     if (!current) return;
-    const a = anchorPoint();
-    if (!a) return;
     const w = card.offsetWidth, h = card.offsetHeight;
-    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
     const header = document.querySelector('.site-header')?.offsetHeight ?? 0;
-    let x = a.x - w / 2;
-    let y = a.below ? a.y : a.y - h - 10;
-    x = Math.max(MARGIN, Math.min(vw - w - MARGIN, x));
-    y = Math.max(header + MARGIN, Math.min(vh - h - MARGIN, y));
+    const box = { left: MARGIN, top: header + MARGIN, right: document.documentElement.clientWidth - MARGIN, bottom: window.innerHeight - MARGIN };
+    const t = target(w, h, box);
+    if (!t) return;
+    side = t.side;
+    const { x, y } = t;
     goal = { x, y };
-    if (snap || !shown) {
+    if (snap || !shown || eco.on) {
       shown = { x, y };
       place();
       return;

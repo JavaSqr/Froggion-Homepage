@@ -371,6 +371,14 @@ export class World {
     bot.pt = bot.loop.advance((tick + 0.5) / 20);
   }
 
+  // The bot's feet and height, in world units (its card keeps clear of it).
+  box(nick) {
+    const bot = this.bots.find((b) => b.nick === nick);
+    if (!bot) return null;
+    const p = bot.living.pose(bot.pt);
+    return { x: p.x, y: p.y, z: p.z, height: bot.crouching ? 1.6 : 1.9 };
+  }
+
   // Screen anchor above the bot's head (for cards), in world units.
   headAnchor(nick) {
     const bot = this.bots.find((b) => b.nick === nick);
