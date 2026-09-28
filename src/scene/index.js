@@ -99,6 +99,8 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   const center = new Vector3(sx / 2, 20, sz / 2);
   const camera = new PerspectiveCamera(35, 1, 0.1, 600);
   const rig = new CameraRig(camera, { island, decoded });
+  // The screen's shape first: the moon is placed in the sky of this screen's first view.
+  rig.resize(layer.clientWidth || 1, layer.clientHeight || 1);
 
   const solidAt = (x, y, z) => {
     const m = view.modelAt(Math.floor(x), Math.floor(y), Math.floor(z));
@@ -125,7 +127,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   scene.add(particles.points);
   const lava = lavaLayout(view, LAVA_FADE);
   const atmosphere = night
-    ? nightAtmosphere(scene, { center, lite, heroPose: rig.heroPose(0), images, emitters: view.emitters, lava, particles, occludes })
+    ? nightAtmosphere(scene, { center, lite, heroPose: rig.heroPose(0), lightPose: rig.heroPose(0, 2), aspect: rig.aspect, images, emitters: view.emitters, lava, particles, occludes })
     : dayAtmosphere(scene, { center, lite, lava, particles });
   particles.dim = atmosphere.particleDim;
 
@@ -239,8 +241,9 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     draw(true);
   }
   // While the loop is stopped (eco mode), one frame on the next animation frame for a changed view.
+  // Off screen nothing is drawn; the island gets a fresh frame when it comes back into view.
   function invalidate() {
-    if (running || pending) return;
+    if (running || pending || !onScreen) return;
     pending = requestAnimationFrame(() => {
       pending = 0;
       if (running) return;
@@ -258,8 +261,10 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   const seen = new Map();
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) seen.set(e.target, e.isIntersecting);
+    const was = onScreen;
     onScreen = [...seen.values()].some(Boolean);
     update();
+    if (onScreen && !was) invalidate();
   }, { threshold: 0 });
   for (const el of visibleWith) if (el) io.observe(el);
   // Start mid-loop so the bots are already busy on the first frame.

@@ -185,7 +185,7 @@ function hero(ctx) {
         </div>
         <p class="hero__note">${esc(t.hero.ctaNote)}</p>
       </div>
-      <p class="scene-hint" aria-hidden="true">${esc(t.scene.hint)}</p>
+      <p class="scene-hint" aria-hidden="true"><span class="scene-hint__mouse">${esc(t.scene.hint)}</span><span class="scene-hint__touch">${esc(t.scene.hintTouch)}</span></p>
       <button type="button" class="scene-play">${esc(t.scene.play)}</button>
       <nav class="bot-list" aria-label="${esc(t.scene.list)}" hidden>
         <ul>${list.map((b) => `<li><button type="button" class="bot-list__btn" data-bot="${b.nick}" aria-haspopup="dialog">${esc(b.name)}</button></li>`).join('')}</ul>

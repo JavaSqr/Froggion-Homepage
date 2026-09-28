@@ -124,13 +124,14 @@ export class CameraRig {
     if (it.t >= 1) this.endIntro();
   }
 
-  heroPose(t) {
+  heroPose(t, aspect = this.aspect) {
     const a = -0.62 + Math.sin(t * 0.12) * 0.22;
-    const narrow = this.aspect < 1;
-    const r = narrow ? 44 / Math.max(0.55, this.aspect) : 42;
-    const pos = new Vector3(this.center.x + Math.sin(a) * r, this.center.y + (narrow ? 19 : 17), this.center.z + Math.cos(a) * r);
+    const narrow = aspect < 1;
+    // Portrait screens: higher and looking down, so the whole island sits in the upper half above the headline.
+    const r = narrow ? Math.max(52, 30 / Math.max(0.45, aspect)) : 42;
+    const pos = new Vector3(this.center.x + Math.sin(a) * r, this.center.y + (narrow ? 24 : 17), this.center.z + Math.cos(a) * r);
     const target = this.center.clone();
-    if (narrow) target.y -= 5.5;
+    if (narrow) target.y -= 6.5;
     return { pos, target };
   }
 

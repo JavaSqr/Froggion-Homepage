@@ -34,6 +34,7 @@
     "label": "The Froggion bot island",
     "list": "Bots on the island",
     "hint": "Hover over a bot to meet it",
+    "hintTouch": "Tap a bot to meet it",
     "download": "Download skin",
     "more": "Learn more",
     "close": "Close",

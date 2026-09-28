@@ -31,12 +31,13 @@ export function dayAtmosphere(scene, { center, lite, lava, particles }) {
   return { variant: 'day', tick: lavaTicker(lava, particles), update() {}, particleDim: 0.8 };
 }
 
-// Direction in the upper right of the first-screen view, for the moon.
-function moonDirection(heroPose) {
+// Direction in the upper right of the first-screen view, for the moon. A portrait screen is narrow:
+// the moon comes closer to the middle so it stays in the frame.
+function moonDirection(heroPose, aspect = 2) {
   const f = new Vector3().subVectors(heroPose.target, heroPose.pos).normalize();
   const right = new Vector3().crossVectors(f, new Vector3(0, 1, 0)).normalize();
   const up = new Vector3().crossVectors(right, f).normalize();
-  return f.clone().addScaledVector(right, 0.3).addScaledVector(up, 0.24).normalize();
+  return f.clone().addScaledVector(right, 0.3 * Math.min(1, aspect * 0.6)).addScaledVector(up, aspect < 1 ? 0.27 : 0.24).normalize();
 }
 
 function stars(center, count) {
@@ -109,12 +110,13 @@ function glowBatch(texture, max) {
   };
 }
 
-export function nightAtmosphere(scene, { center, lite, heroPose, images, emitters, lava, particles, occludes }) {
+export function nightAtmosphere(scene, { center, lite, heroPose, lightPose = heroPose, aspect, images, emitters, lava, particles, occludes }) {
   // The baked island colours already carry the light, so the base light is plain white.
   scene.add(new AmbientLight(0xffffff, Math.PI));
-  const moonDir = moonDirection(heroPose);
+  const moonDir = moonDirection(heroPose, aspect);
+  // The light keeps the direction of the wide view's moon, so the island is lit the same on every screen.
   // Moonlight comes from the moon's side of the sky but a little towards the viewer, so faces facing us catch it.
-  const lightDir = moonDir.clone().setY(0).applyAxisAngle(new Vector3(0, 1, 0), -1.1).normalize().setY(1.15).normalize();
+  const lightDir = moonDirection(lightPose).setY(0).applyAxisAngle(new Vector3(0, 1, 0), -1.1).normalize().setY(1.15).normalize();
   const moon = shadowLight(new DirectionalLight(0x9fb3e6, 0.3 * Math.PI), center, lite, 24);
   moon.position.copy(center).addScaledVector(lightDir, 45);
   scene.add(moon, moon.target);
