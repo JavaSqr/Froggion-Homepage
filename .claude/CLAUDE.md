@@ -31,7 +31,7 @@
 - GitHub Pages: https://javasqr.github.io/Froggion-Homepage/ — деплой `.github/workflows/deploy.yml`
   при пуше в `main`, последний прогон успешен. Боевой домен в конфиге — https://froggion.bot.
 - `npm run check`: 38 тестов проходят; бюджет 215 КБ из 300 (главная без three.js и скинов, gzip).
-- 28.09 (локально, Windows): раунд 6 ниже закоммичен в ветку, в `main` не мержен. `npm run check`: 39 тестов,
+- 28.09 (локально, Windows): раунд 6 ниже в ветке и в `main` (fast-forward по «да» пользователя), Pages обновился. `npm run check`: 39 тестов,
   бюджет 235 КБ (скины теперь в склейке текстур и считаются). Chromium для Playwright установлен.
 - Этапы ТЗ 1–3 закрыты, дальше шли раунды правок по отзывам пользователя (ниже).
 
