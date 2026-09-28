@@ -8,13 +8,10 @@ const ZOOM = 3.4;
 const REVEAL = 0.55;
 // The moon picture is laid over the scene's moon before the zoom starts.
 const HANDOVER = 350;
-// Without a scene by then, the page shows as it is (the poster stands in for the island).
-const WAIT = 8000;
 
 export function createIntro() {
   const active = root.classList.contains('intro');
   let shown = !active;
-  const timer = active ? setTimeout(() => show(), WAIT) : 0;
   // Scrolling or the keyboard: the visitor wants the page now.
   const skip = () => show();
   if (active) {
@@ -25,7 +22,6 @@ export function createIntro() {
   function show() {
     if (shown) return;
     shown = true;
-    clearTimeout(timer);
     removeEventListener('scroll', skip);
     removeEventListener('keydown', skip);
     root.classList.add('intro-played');

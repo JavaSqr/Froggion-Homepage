@@ -42,6 +42,13 @@ if (layer && variant !== body.dataset.variant) {
   for (const still of document.querySelectorAll('.job__still')) still.src = still.src.replace(/(-night)?\.webp$/, `${suffix}.webp`);
 }
 
+// Without the scene (or while it is late) the page shows as it is, the poster in place of the island.
+const WAIT = 8000;
+function withoutScene() {
+  intro.show();
+  document.documentElement.classList.remove('scene-on');
+}
+
 // «scene-flight»: the bot blocks stand over the live island. Without it they are a plain list with stills.
 let started = false;
 let downloads = null;
@@ -50,22 +57,26 @@ async function boot() {
   started = true;
   body.classList.remove('scene-paused');
   body.classList.add('scene-flight');
+  const late = setTimeout(withoutScene, WAIT);
   try {
     downloads ??= loadSceneData({ night: variant === 'night' });
     const { startScene } = await import('./scene/index.js');
     const scene = await startScene({
       layer, bots: botsData, lite, variant, debug: params.has('debug'), eco: eco.on, downloads, intro: intro.options(layer),
     });
+    clearTimeout(late);
     eco.onChange((on) => scene.setEco(on));
     cards.attachScene(scene);
+    // The camera takes its place for the scroll position first, then the island shows: no frame from elsewhere.
     if (!body.classList.contains('poster-mode')) initFlyover({ scene, section: jobs });
+    layer.classList.add('is-shown');
     body.classList.add('scene-live');
     intro.play(scene);
     window.__froggion = { scene, cards };
   } catch (e) {
-    // The poster stays; the page works without the 3D scene.
+    clearTimeout(late);
     body.classList.remove('scene-flight');
-    intro.show();
+    withoutScene();
     console.error('[froggion] 3D scene failed to start:', e);
   }
 }
@@ -80,10 +91,10 @@ function afterFirstPaint(fn) {
 if (!layer) {
   // no scene on this page
 } else if (!webglAvailable()) {
-  intro.show();
+  withoutScene();
   console.info('[froggion] 3D scene is off: WebGL is not available (is hardware acceleration disabled?)');
 } else if (still) {
-  intro.show();
+  withoutScene();
   console.info('[froggion] 3D scene is off: reduced motion (the system setting with motion "system" in site.config.json, or ?still). Use the button or ?motion.');
   body.classList.add('scene-paused');
   document.querySelector('.scene-play')?.addEventListener('click', boot);

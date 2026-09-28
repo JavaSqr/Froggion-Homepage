@@ -123,6 +123,8 @@ try {
       continue;
     }
     await page.waitForFunction(() => window.__froggion?.scene?.ready, null, { timeout: 60000 });
+    // The island fades in over the sky.
+    await page.waitForTimeout(450);
     // Stills: stop the clock so the chosen moment is what gets captured.
     await page.evaluate(() => window.__froggion.scene.freeze(true));
     await scrollTo();
