@@ -1,9 +1,39 @@
-// Texture loading and the block atlas. Every texture is its own file under /textures/.
+// Texture loading and the block atlas. Every texture is its own file under /textures/; the build packs them
+// all, skins included, into data/textures.png (tools/texture-pack.js), which the scene loads in one request.
+// This module is small and has no three.js in it: the page starts loading the scene data right away.
 export const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
+const DATA = `${import.meta.env.BASE_URL}data/`;
 /* global __BUILD__ */
 const VERSION = typeof __BUILD__ === 'string' ? __BUILD__ : '';
 // Files in public/ keep their names between builds; the version query makes a new build visible at once.
 export const versioned = (url) => (VERSION ? `${url}${url.includes('?') ? '&' : '?'}v=${VERSION}` : url);
+const fetchJson = (u) => fetch(versioned(u)).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
+
+// Name → image for everything in the pack; an empty map when there is none (textures then come one by one).
+async function loadPack() {
+  try {
+    const [map, blob] = await Promise.all([
+      fetchJson(`${DATA}textures.json`),
+      fetch(versioned(`${DATA}textures.png`)).then((r) => { if (!r.ok) throw new Error(`textures.png: ${r.status}`); return r.blob(); }),
+    ]);
+    const sheet = await createImageBitmap(blob);
+    const entries = await Promise.all(Object.entries(map).map(async ([name, [x, y, w, h]]) => [name, await createImageBitmap(sheet, x, y, w, h)]));
+    return new Map(entries);
+  } catch (e) {
+    console.warn('[froggion] no texture pack, loading textures one by one:', e.message);
+    return new Map();
+  }
+}
+
+// Everything the scene downloads, started at once and in parallel with three.js.
+export function loadSceneData({ night }) {
+  return {
+    island: fetchJson(`${DATA}island.json`),
+    scene: fetchJson(`${DATA}scene.json`),
+    night: night ? fetchJson(`${DATA}night.json`) : Promise.resolve({ blocks: [] }),
+    pack: loadPack(),
+  };
+}
 
 export async function loadImage(url) {
   const res = await fetch(versioned(url));
@@ -18,8 +48,8 @@ export async function loadImage(url) {
   });
 }
 
-export async function loadTextures(names) {
-  const entries = await Promise.all([...names].map(async (n) => [n, await loadImage(`${TEXTURE_BASE}${n}.png`)]));
+export async function loadTextures(names, pack = new Map()) {
+  const entries = await Promise.all([...names].map(async (n) => [n, pack.get(n) ?? await loadImage(`${TEXTURE_BASE}${n}.png`)]));
   return new Map(entries);
 }
 

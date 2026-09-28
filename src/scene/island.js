@@ -98,38 +98,36 @@ export function createIslandView({ island, extraStates, dynamic, extraStatic = [
     group.add(mesh);
   }
 
-  // Each dynamic cell gets its own small meshes, rebuilt when its state changes.
+  // The cells the bots change share one mesh per layer, rebuilt (before the next frame) when one of them changes.
   const dynGroup = new Group();
   group.add(dynGroup);
-  const cellMeshes = new Map();
-  function rebuildCell(x, y, z) {
-    const key = grid.index(x, y, z);
-    for (const m of cellMeshes.get(key) ?? []) { dynGroup.remove(m); m.geometry.dispose(); }
-    const built = mesher.build(grid, { cells: [[x, y, z]] });
-    const meshes = [];
+  const dynCells = dynamic.map(([x, y, z]) => [x, y, z]);
+  let dirty = true;
+  function rebuildDynamic() {
+    dirty = false;
+    for (const m of [...dynGroup.children]) { dynGroup.remove(m); m.geometry.dispose(); }
+    const built = mesher.build(grid, { cells: dynCells });
     for (const layer of layers) {
       if (!built[layer].quads) continue;
       const mesh = new Mesh(geometry(built[layer]), materials[layer]);
+      if (layer.startsWith('water')) mesh.renderOrder = 2;
       mesh.castShadow = !layer.startsWith('water');
       mesh.receiveShadow = true;
       dynGroup.add(mesh);
-      meshes.push(mesh);
     }
-    cellMeshes.set(key, meshes);
   }
-  const neighbors = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
   function setBlock(x, y, z, state) {
     const key = grid.index(x, y, z);
     let idx = indexOf.get(state);
     if (idx === undefined) { idx = palette.length; palette.push(state); indexOf.set(state, idx); mesher.models.push(modelFor(state)); }
     if (overrides.get(key) === idx) return;
     overrides.set(key, idx);
-    rebuildCell(x, y, z);
-    for (const [dx, dy, dz] of neighbors) if (dynKeys.has(grid.index(x + dx, y + dy, z + dz))) rebuildCell(x + dx, y + dy, z + dz);
+    dirty = true;
   }
-  for (const [x, y, z] of dynamic) rebuildCell(x, y, z);
+  rebuildDynamic();
 
   function update(seconds) {
+    if (dirty) rebuildDynamic();
     for (const t of materials.animated) {
       const frames = t.userData.frames;
       t.offset.y = (Math.floor(seconds * 10) % frames) / frames;

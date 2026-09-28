@@ -1,5 +1,5 @@
-// Weight of the home page after `vite build`: everything it downloads except three.js and the skins,
-// scene data included, in gzip (images and fonts count as they are). Fails above the budget.
+// Weight of the home page after `vite build`: everything it downloads except three.js,
+// scene data and the texture pack (skins are in it) included, in gzip (images and fonts count as they are). Fails above the budget.
 //   node tools/check-budget.js
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,7 +43,6 @@ function pageWeight(htmlFile, { live }) {
   }
   if (live) {
     for (const f of walk(path.join(DIST, 'data'))) files.add(f);
-    for (const f of walk(path.join(DIST, 'textures'))) files.add(f);
   } else {
     for (const f of assets) if (/scene-.*\.js$/.test(path.basename(f))) files.delete(f);
   }
@@ -60,7 +59,7 @@ for (const lang of config.languages) {
     const groups = {};
     for (const f of list) {
       const g = /\.(woff2?)$/.test(f.name) ? 'fonts' : /\.js$/.test(f.name) ? 'js' : /\.css$/.test(f.name) ? 'css'
-        : /^data\//.test(f.name) ? 'scene data' : /^textures\//.test(f.name) ? 'textures' : /\.html$/.test(f.name) ? 'html' : 'images';
+        : /^data\/textures\./.test(f.name) ? 'textures' : /^data\//.test(f.name) ? 'scene data' : /\.html$/.test(f.name) ? 'html' : 'images';
       groups[g] = (groups[g] ?? 0) + f.size;
     }
     const ok = total <= BUDGET;

@@ -1,16 +1,18 @@
 // Island scene: loads data and textures, builds the island and bots, runs the loop, exposes picking.
 import {
-  ColorManagement, LinearSRGBColorSpace, PCFShadowMap, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3,
-  WebGLRenderer, Texture, NearestFilter,
+  ColorManagement, Group, LinearSRGBColorSpace, Mesh, PCFShadowMap, PerspectiveCamera, Raycaster, Scene, Sprite,
+  Vector2, Vector3, WebGLRenderer, Texture, NearestFilter,
 } from 'three';
-import { loadTextures, buildAtlas, loadImage, versioned } from './assets.js';
+import { loadTextures, buildAtlas, loadImage, loadSceneData } from './assets.js';
 import { createIslandView, createMaterials, islandTextureNames, FLUID_TEXTURES } from './island.js';
 import { decodeScene } from './timeline.js';
 import { World } from './world.js';
 import { Particles, PARTICLE_TEXTURES } from './particles.js';
-import { ItemFactory } from './items.js';
+import { ItemFactory, GROUND } from './items.js';
+import { Creeper } from './creeper.js';
 import { modelFor } from './blocks.js';
 import { CameraRig } from './camera.js';
+import { refreshBounds } from './model.js';
 import { dayAtmosphere, nightAtmosphere } from './atmosphere.js';
 import { nightLightmap } from './light.js';
 import { NameTags } from './nametags.js';
@@ -18,10 +20,8 @@ import { lavaLayout } from './lava.js';
 
 ColorManagement.enabled = false;
 
-const DATA = `${import.meta.env.BASE_URL}data/`;
 // Lavafalls dissolve into the void below the island.
 const LAVA_FADE = { y0: 2, y1: 12 };
-const fetchJson = (u) => fetch(versioned(u)).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
 
 function pixelTexture(image) {
   const t = new Texture(image);
@@ -35,12 +35,12 @@ function pixelTexture(image) {
 
 // visibleWith: elements that leave the fixed scene layer in sight; the loop pauses when none is on screen.
 // eco: the scene stands still and draws a frame only when the view changes (see setEco).
-export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day', visibleWith = [layer], eco = false }) {
+// downloads: loadSceneData() started by the page before this module arrived.
+// intro: { share } starts on the moon covering that share of the screen's shorter side (see playIntro).
+export async function startScene({ layer, bots: meta, lite = false, debug = false, variant = 'day', visibleWith = [layer], eco = false, downloads, intro = null }) {
   const night = variant === 'night';
-  const [island, data, nightData] = await Promise.all([
-    fetchJson(`${DATA}island.json`), fetchJson(`${DATA}scene.json`),
-    night ? fetchJson(`${DATA}night.json`) : Promise.resolve({ blocks: [] }),
-  ]);
+  const dl = downloads ?? loadSceneData({ night });
+  const [island, data, nightData, pack] = await Promise.all([dl.island, dl.scene, dl.night, dl.pack]);
   const decoded = decodeScene(data);
   const nightStates = nightData.blocks.map((b) => b[3]);
 
@@ -65,10 +65,11 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     ...(night ? ['environment/moon'] : []),
     ...Array.from({ length: 10 }, (_, i) => `block/destroy_stage_${i}`),
   ]);
+  const skinName = (url) => `skins/${url.split('/').pop().replace(/\.png$/, '')}`;
   const [blockImages, otherImages, skinImages] = await Promise.all([
-    loadTextures(blockNames),
-    loadTextures(otherNames).catch((e) => { console.warn(e); return new Map(); }),
-    Promise.all(meta.map(async (m) => [m.nick, await loadImage(m.skin)])).then((e) => new Map(e)),
+    loadTextures(blockNames, pack),
+    loadTextures(otherNames, pack).catch((e) => { console.warn(e); return new Map(); }),
+    Promise.all(meta.map(async (m) => [m.nick, pack.get(skinName(m.skin)) ?? await loadImage(m.skin)])).then((e) => new Map(e)),
   ]);
   const images = new Map([...blockImages, ...otherImages]);
 
@@ -146,7 +147,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     width = layer.clientWidth; height = layer.clientHeight;
     renderer.setSize(width, height, false);
     rig.resize(width, height);
-    particles.setViewport(height, camera.fov);
+    particles.setViewport(height, rig.fov);
     invalidate();
   };
   resize();
@@ -160,6 +161,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     const rect = renderer.domElement.getBoundingClientRect();
     const ndc = new Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
+    refreshBounds(pickables);
     const hit = raycaster.intersectObjects(pickables, false)[0];
     return hit ? hit.object.userData.nick : null;
   }
@@ -262,10 +264,31 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   for (const el of visibleWith) if (el) io.observe(el);
   // Start mid-loop so the bots are already busy on the first frame.
   rig.still = eco;
+  if (intro && atmosphere.moon) rig.beginIntro(atmosphere.moon.position, atmosphere.moon.scale, intro.share);
   step(0.05);
+  await warmUp();
   still();
   update();
   layer.classList.add('is-live');
+
+  // Shaders of what shows up later (creepers, items, cracks, the hover outline) are compiled before the
+  // first frame, in parallel where the browser can, not in the middle of the animation.
+  async function warmUp() {
+    const extra = new Group();
+    extra.add(new Creeper({ texture: assets.creeper }).entity, new Mesh(world.crackGeometry, world.crackMaterials[0]));
+    extra.add(new Sprite(world.bobberMaterial), new Sprite(world.orbMaterial));
+    for (const n of itemNames) { const o = world.items.create(n, GROUND); if (o) extra.add(o); }
+    extra.position.copy(center);
+    extra.traverse((o) => { o.frustumCulled = false; if (o.isMesh) o.castShadow = true; });
+    const outlines = world.bots.map((b) => b.model.outline);
+    for (const o of outlines) o.visible = true;
+    scene.add(extra);
+    try { await renderer.compileAsync(scene, camera); } catch { /* compiled on the first frame then */ }
+    // The shadow pass has shaders of its own.
+    renderer.render(scene, camera);
+    scene.remove(extra);
+    for (const o of outlines) o.visible = false;
+  }
 
   const api = {
     ready: true,
@@ -280,6 +303,8 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     focusBot(nick, animate = true) { rig.focus(nick, animate); still(); },
     seek(nick, tick) { world.seek(nick, tick); still(); },
     heroView(animate = true) { rig.hero(animate); still(); },
+    // The intro's zoom out from the moon, over `seconds` (0: straight to the view).
+    playIntro(seconds) { rig.playIntro(eco ? 0 : seconds); invalidate(); },
     // Scroll flight: the stops in order, then progress along them (-1 = first screen).
     setPath(nicks) { rig.setPath(nicks); },
     fly(s, instant = false) { rig.fly(s, instant); invalidate(); },

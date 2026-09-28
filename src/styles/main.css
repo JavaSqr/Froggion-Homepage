@@ -177,6 +177,7 @@ html.eco .eco-toggle { color: var(--green); background: rgba(31, 58, 36, 0.6); b
 .name-tags span {
   position: absolute; left: 0; top: 0; padding: 0.05em 0.3em 0; white-space: nowrap;
   font: 16px/1.25 var(--pixel); color: #fff; background: rgba(0, 0, 0, 0.32); transition: opacity 0.25s;
+  will-change: transform;
 }
 .name-tags span.is-behind { opacity: 0.45; }
 .hero__copy { position: relative; z-index: 2; max-width: 640px; pointer-events: none; }
@@ -478,6 +479,30 @@ html.eco *, html.eco *::before, html.eco *::after { transition: none !important;
 
 /* Night variant of the scene: a deep blue sky behind the island. */
 body[data-variant='night'] .scene-layer { background: radial-gradient(ellipse at 64% 36%, #121c30 0%, #0a0f1a 45%, #06080d 78%); }
+
+/* Intro (src/ui/intro.js): the moon close up while the scene loads, drawn like the scene draws it
+   (the texture tinted, a soft additive halo 70/15 of its size), then the scene fades in over it and zooms out.
+   Header and headline stay hidden until the zoom out. */
+.scene-moon { display: none; position: absolute; left: calc(50% - 45vmin); top: calc(50% - 45vmin); width: 90vmin; height: 90vmin; pointer-events: none; }
+html.intro:not(.intro-zoom) .scene-moon { display: block; }
+.scene-moon img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; transform: scaleY(-1); /* as the sprite shows it */ }
+.scene-moon__tint { position: absolute; inset: 18.75%; background: #b9c3d8; mix-blend-mode: multiply; }
+.scene-moon__halo {
+  position: absolute; left: -183.33%; top: -183.33%; width: 466.67%; height: 466.67%;
+  background: #6f86c4; opacity: 0.5; mix-blend-mode: plus-lighter;
+  /* The texture comes premultiplied into the scene, so its alpha counts twice: the mask twice over. */
+  -webkit-mask: url('/textures/particle/glow.png') center / 100% 100% no-repeat, url('/textures/particle/glow.png') center / 100% 100% no-repeat;
+  -webkit-mask-composite: source-in;
+  mask: url('/textures/particle/glow.png') center / 100% 100% no-repeat, url('/textures/particle/glow.png') center / 100% 100% no-repeat;
+  mask-composite: intersect;
+}
+html.intro .bot-list { visibility: hidden; }
+html.intro .scene-layer canvas { opacity: 0; }
+html.intro.intro-live .scene-layer canvas { opacity: 1; transition: opacity 0.3s ease; }
+html.intro .scene-poster, html.intro-played .scene-layer.is-live .scene-poster, html.intro .job__still { display: none; }
+html.intro .site-header, html.intro .hero__copy, html.intro .scene-hint, html.intro .hero::before { opacity: 0; visibility: hidden; }
+html.intro-played .hero__copy, html.intro-played .hero::before { transition: opacity 1s ease, visibility 0s; }
+html.intro-played .site-header { transition: opacity 1s ease 0.35s, visibility 0s; }
 
 /* Shown when reduced motion kept the scene off: the visitor can still start it. */
 .scene-play {

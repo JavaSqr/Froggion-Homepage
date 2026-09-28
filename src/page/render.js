@@ -57,8 +57,18 @@ export function renderExtras(root, { base = '/' } = {}) {
   };
 }
 
-// Eco mode (src/ui/eco.js) applied before the first paint, so nothing starts moving and then stops.
-const ECO_SCRIPT = "try{if(localStorage.getItem('froggion-eco')==='1')document.documentElement.classList.add('eco')}catch(e){}";
+// Before the first paint: eco mode (src/ui/eco.js), so nothing starts moving and then stops; and whether the
+// home page opens with the intro (src/ui/intro.js): a close-up of the moon while the scene loads, then
+// a zoom out to the island. Not in eco mode, without motion, with an anchor in the address or for tools.
+// Without the intro the poster stands in for the scene, preloaded here.
+function headScript({ config, base }, home) {
+  const eco = "var d=document.documentElement,e=false;try{e=localStorage.getItem('froggion-eco')==='1'}catch(x){}if(e)d.classList.add('eco');";
+  if (!home) return `(function(){${eco}})()`;
+  const poster = (portrait) => base + posterName(config, portrait).slice(1);
+  return `(function(){${eco}
+if('intro' in d.dataset&&!e&&!location.hash&&!/[?&](still|poster|day|nointro)\\b/.test(location.search)&&(d.dataset.motion==='always'||!matchMedia('(prefers-reduced-motion: reduce)').matches)){d.classList.add('intro');return}
+[['${poster(false)}','(min-aspect-ratio: 1/1)'],['${poster(true)}','(max-aspect-ratio: 1/1)']].forEach(function(p){var l=document.createElement('link');l.rel='preload';l.as='image';l.href=p[0];l.media=p[1];l.fetchPriority='high';document.head.appendChild(l)})})()`;
+}
 
 // Link preview image, one per language (tools/render-poster.js).
 const ogImage = ({ lang, config }) => `${config.siteUrl}/${lang.path === '/' ? 'og.jpg' : `og-${lang.code}.jpg`}`;
@@ -72,9 +82,6 @@ function head({ t, lang, config, base }, { title = t.meta.title, description = t
     .concat(`<link rel="alternate" hreflang="x-default" href="${config.siteUrl}/${pagePath}">`)
     .join('\n    ');
   const locale = lang.code === 'ru' ? 'ru_RU' : 'en_US';
-  const preload = home ? `
-    <link rel="preload" as="image" href="${posterName(config, false)}" media="(min-aspect-ratio: 1/1)" fetchpriority="high">
-    <link rel="preload" as="image" href="${posterName(config, true)}" media="(max-aspect-ratio: 1/1)" fetchpriority="high">` : '';
   return `<head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -97,9 +104,9 @@ function head({ t, lang, config, base }, { title = t.meta.title, description = t
     <meta name="theme-color" content="#0b0f0c">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="manifest" href="${base}site.webmanifest">${preload}
+    <link rel="manifest" href="${base}site.webmanifest">
     <link rel="stylesheet" href="/src/styles/main.css">
-    <script>${ECO_SCRIPT}</script>
+    <script>${headScript({ config, base }, home)}</script>
     <script type="module" src="/src/main.js"></script>
   </head>`;
 }
@@ -151,8 +158,9 @@ function sceneLayer({ t, config }) {
   return `<div class="scene-layer" data-scene aria-label="${esc(t.scene.label)}" role="img">
         <picture class="scene-poster">
           <source srcset="${posterName(config, true)}" media="(max-aspect-ratio: 1/1)">
-          <img src="${posterName(config, false)}" alt="${esc(t.scene.posterAlt)}" fetchpriority="high" decoding="async">
-        </picture>
+          <img src="${posterName(config, false)}" alt="${esc(t.scene.posterAlt)}" loading="lazy" decoding="async">
+        </picture>${config.scene?.variant === 'night' ? `
+        <div class="scene-moon" aria-hidden="true"><img src="/textures/environment/moon.png" width="32" height="32" alt=""><span class="scene-moon__tint"></span><span class="scene-moon__halo"></span></div>` : ''}
       </div>`;
 }
 
@@ -486,8 +494,9 @@ function structuredData({ t, lang, config }) {
 
 export function renderPage(ctx) {
   const { lang } = ctx;
+  const intro = ctx.config.scene?.variant === 'night' ? ' data-intro' : '';
   return `<!doctype html>
-<html lang="${lang.code}" data-motion="${ctx.config.motion ?? 'system'}">
+<html lang="${lang.code}" data-motion="${ctx.config.motion ?? 'system'}"${intro}>
   ${head(ctx)}
   <body data-variant="${ctx.config.scene?.variant ?? 'day'}">
     <a class="skip-link" href="#main">${esc(ctx.t.nav.skip)}</a>

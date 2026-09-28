@@ -1,7 +1,7 @@
 // Player model: skin 64×64 with the outer layer, classic or slim arms, and a port of
 // HumanoidModel/PlayerModel.setupAnim (walk, arm bob, swing curve, crouch, held item pose).
 import { BackSide, DoubleSide, FrontSide, Group, MeshBasicMaterial, MeshLambertMaterial } from 'three';
-import { boxGeometry, Part, entityRig, DEG } from './model.js';
+import { boxGeometry, Part, entityRig, skinnedModel, DEG } from './model.js';
 
 const PLAYER_SCALE = 0.9375;
 
@@ -28,21 +28,23 @@ export class Humanoid {
     this.materials = [baseMat, outerMat];
     this.outlineMat = new MeshBasicMaterial({ color: outlineColor, side: BackSide });
     this.parts = {};
-    this.outlines = [];
-    this.pickables = [];
+    // Both skin layers in one skinned mesh (a draw call per layer), the hover outline in another.
+    const layers = [], outline = [];
     for (const [name, def] of Object.entries(layout(slim))) {
       const p = new Part(name, ...def.pivot);
       const [u, v, o, s] = def.base;
-      const base = p.add(boxGeometry(64, 64, u, v, o[0], o[1], o[2], s[0], s[1], s[2], 0), baseMat);
-      p.add(boxGeometry(64, 64, def.outer[0], def.outer[1], o[0], o[1], o[2], s[0], s[1], s[2], def.outer[2]), outerMat);
-      const outline = p.add(boxGeometry(64, 64, u, v, o[0], o[1], o[2], s[0], s[1], s[2], def.outer[2] + 0.55), this.outlineMat);
-      outline.visible = false;
-      outline.renderOrder = -1;
-      this.outlines.push(outline);
-      this.pickables.push(base);
+      layers.push([p, boxGeometry(64, 64, u, v, o[0], o[1], o[2], s[0], s[1], s[2], 0), 0]);
+      layers.push([p, boxGeometry(64, 64, def.outer[0], def.outer[1], o[0], o[1], o[2], s[0], s[1], s[2], def.outer[2]), 1]);
+      outline.push([p, boxGeometry(64, 64, u, v, o[0], o[1], o[2], s[0], s[1], s[2], def.outer[2] + 0.55)]);
       this.modelRoot.add(p.group);
       this.parts[name] = p;
     }
+    this.body = skinnedModel(layers, this.materials);
+    this.outline = skinnedModel(outline, this.outlineMat);
+    this.outline.visible = false;
+    this.outline.renderOrder = -1;
+    this.modelRoot.add(this.body, this.outline);
+    this.pickables = [this.body];
     // Held item anchor follows the right arm (translateToHand).
     this.hand = new Group();
     this.handInner = new Group();
@@ -59,7 +61,7 @@ export class Humanoid {
   }
 
   setOutline(on) {
-    for (const o of this.outlines) o.visible = on;
+    this.outline.visible = on;
   }
 
   setHeldItem(object) {

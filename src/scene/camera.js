@@ -1,6 +1,6 @@
 // Camera: a slow sway around the island for the first screen, close-ups of each station,
 // and the scroll-driven flight between them (section «Работа ботов»).
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const smooth = (t) => t * t * (3 - 2 * t);
@@ -40,6 +40,10 @@ function blend(a, b, k, center) {
 export class CameraRig {
   constructor(camera, { island, decoded }) {
     this.camera = camera;
+    this.fov = camera.fov;
+    this.film = 0;
+    this.height = 1;
+    this.intro = null;
     const [sx, , sz] = island.size;
     this.center = new Vector3(sx / 2, 19.5, sz / 2);
     this.stations = new Map(decoded.bots.map((b) => [b.nick, this.stationView(b)]));
@@ -60,16 +64,64 @@ export class CameraRig {
 
   // Whether the camera is on its way somewhere (the scene then draws at the full frame rate).
   get moving() {
-    return !!(this.transition || this.leap) || this.flight.s !== this.flight.goal;
+    return !!(this.transition || this.leap || this.intro?.playing) || this.flight.s !== this.flight.goal;
   }
 
   resize(w, h) {
     this.aspect = w / h;
+    this.height = h;
     this.camera.aspect = this.aspect;
     // Wide screens: shift the island right, away from the headline.
-    this.camera.filmOffset = this.aspect > 1.2 && !this.centered ? -Math.min(7, (this.aspect - 1.2) * 9) : 0;
+    this.film = this.aspect > 1.2 && !this.centered ? -Math.min(7, (this.aspect - 1.2) * 9) : 0;
+    this.camera.filmOffset = this.film;
     this.camera.updateProjectionMatrix();
     this.update(0);
+  }
+
+  // Intro: the camera starts on the moon, zoomed in until the moon sprite (`scale` units across) covers
+  // `share` of the shorter side of the screen, and waits; playIntro() then zooms out to the current view.
+  beginIntro(moon, scale, share) {
+    this.intro = { moon: moon.clone(), scale, share, t: 0, duration: 0, playing: false };
+    this.update(0);
+  }
+
+  playIntro(duration) {
+    if (!this.intro) return;
+    if (duration > 0 && !this.still) Object.assign(this.intro, { duration, playing: true });
+    else this.endIntro();
+  }
+
+  endIntro() {
+    this.intro = null;
+    this.camera.fov = this.fov;
+    this.camera.filmOffset = this.film;
+    this.camera.updateProjectionMatrix();
+    this.apply();
+  }
+
+  // The zoom widens the view evenly (in the tangent of the half-angle) while the gaze turns from the moon
+  // to the view in step with it: the moon glides from the middle of the screen to its place in the sky.
+  applyIntro(dt) {
+    const it = this.intro;
+    if (it.playing) it.t = Math.min(1, it.t + dt / it.duration);
+    const toMoon = it.moon.clone().sub(this.pos);
+    const dist = toMoon.length();
+    const px = it.share * Math.min(this.height, this.height * this.aspect);
+    const tanMoon = (it.scale * this.height) / (2 * dist * px);
+    const tanView = Math.tan((this.fov * Math.PI) / 360);
+    const k = ease(it.t);
+    const tan = Math.exp(Math.log(tanMoon) + (Math.log(tanView) - Math.log(tanMoon)) * k);
+    // The moon's offset on screen grows with k; turned into an angle, that is k · tan.
+    const u = clamp((k * tan) / tanView, 0, 1);
+    const view = this.target.clone().sub(this.pos);
+    const turn = new Quaternion().setFromUnitVectors(toMoon.normalize(), view.clone().normalize());
+    const dir = toMoon.applyQuaternion(new Quaternion().slerp(turn, u));
+    this.camera.position.copy(this.pos);
+    this.camera.lookAt(this.pos.clone().addScaledVector(dir, view.length()));
+    this.camera.fov = (Math.atan(tan) * 360) / Math.PI;
+    this.camera.filmOffset = this.film * u;
+    this.camera.updateProjectionMatrix();
+    if (it.t >= 1) this.endIntro();
   }
 
   heroPose(t) {
@@ -193,7 +245,8 @@ export class CameraRig {
       this.pos.copy(g.pos);
       this.target.copy(g.target);
     }
-    this.apply();
+    if (this.intro) this.applyIntro(dt);
+    else this.apply();
   }
 
   apply() {

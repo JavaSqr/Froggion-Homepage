@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import { pagesPlugin } from './tools/vite-pages.js';
+import { texturePackPlugin } from './tools/texture-pack.js';
 
 // Version tag for files in public/ (scene data, textures, skins) so browsers pick up a new build.
 function buildId() {
@@ -14,7 +15,7 @@ function buildId() {
 export default defineConfig({
   // GitHub Pages serves the site from /<repo>/; the deploy workflow passes that path in BASE_PATH.
   base: process.env.BASE_PATH || '/',
-  plugins: [pagesPlugin()],
+  plugins: [pagesPlugin(), texturePackPlugin()],
   // Static pages: an unknown address is a 404, as on the server, not the home page.
   appType: 'mpa',
   define: { __BUILD__: JSON.stringify(buildId()) },

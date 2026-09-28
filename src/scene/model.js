@@ -1,6 +1,6 @@
 // Entity model boxes with the game's box UV layout, built in model space (pixels, y down),
 // plus the transform that puts model space upright into the world.
-import { BufferAttribute, BufferGeometry, Group, Mesh } from 'three';
+import { Bone, BufferAttribute, BufferGeometry, Group, Matrix4, Skeleton, SkinnedMesh } from 'three';
 
 /** Port of the box constructor: texture offset (u, v), origin (x, y, z), size (w, h, d), inflate g. */
 export function boxGeometry(texW, texH, u, v, x, y, z, w, h, d, g = 0, mirror = false) {
@@ -44,21 +44,56 @@ export function boxGeometry(texW, texH, u, v, x, y, z, w, h, d, g = 0, mirror = 
   return geo;
 }
 
+/**
+ * One draw call for a whole model: boxes of several parts merged into a skinned mesh, each part a bone
+ * and each vertex bound to its part. pieces: [[part, geometry, group]]; `group` picks the material
+ * when `material` is a list. The vertices stay in their part's space, so the bind pose is identity.
+ */
+export function skinnedModel(pieces, material) {
+  const bones = [...new Set(pieces.map(([p]) => p.group))];
+  const pos = [], uv = [], nor = [], idx = [], skinIndex = [], skinWeight = [];
+  const geo = new BufferGeometry();
+  const sorted = [...pieces].sort((a, b) => (a[2] ?? 0) - (b[2] ?? 0));
+  let groupStart = 0, groupId = sorted[0]?.[2] ?? 0;
+  for (const [part, g, group = 0] of sorted) {
+    if (group !== groupId) { geo.addGroup(groupStart, idx.length - groupStart, groupId); groupStart = idx.length; groupId = group; }
+    const base = pos.length / 3;
+    const bone = bones.indexOf(part.group);
+    pos.push(...g.attributes.position.array);
+    uv.push(...g.attributes.uv.array);
+    nor.push(...g.attributes.normal.array);
+    for (const i of g.index.array) idx.push(base + i);
+    for (let i = 0; i < g.attributes.position.count; i++) { skinIndex.push(bone, 0, 0, 0); skinWeight.push(1, 0, 0, 0); }
+    g.dispose();
+  }
+  if (Array.isArray(material)) geo.addGroup(groupStart, idx.length - groupStart, groupId);
+  geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+  geo.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
+  geo.setAttribute('skinIndex', new BufferAttribute(new Uint16Array(skinIndex), 4));
+  geo.setAttribute('skinWeight', new BufferAttribute(new Float32Array(skinWeight), 4));
+  geo.setIndex(idx);
+  const mesh = new SkinnedMesh(geo, material);
+  mesh.bind(new Skeleton(bones, bones.map(() => new Matrix4())), new Matrix4());
+  // The bones move the model away from any bounds computed once.
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+// Ray against skinned models: their bounds follow the current pose.
+export function refreshBounds(meshes) {
+  for (const m of meshes) if (m.isSkinnedMesh) m.boundingSphere = null;
+}
+
 /** A model part: pivot (x, y, z) and rotations applied Z, then Y, then X like the game. */
 export class Part {
   constructor(name, x = 0, y = 0, z = 0) {
-    this.group = new Group();
+    this.group = new Bone();
     this.group.name = name;
     this.group.rotation.order = 'ZYX';
     this.x = x; this.y = y; this.z = z;
     this.xRot = 0; this.yRot = 0; this.zRot = 0;
     this.base = [x, y, z];
-  }
-  add(geometry, material, extra = {}) {
-    const m = new Mesh(geometry, material);
-    Object.assign(m.userData, extra);
-    this.group.add(m);
-    return m;
   }
   copyFrom(p) {
     this.x = p.x; this.y = p.y; this.z = p.z;

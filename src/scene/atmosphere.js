@@ -123,7 +123,8 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
   scene.add(stars(center, lite ? 500 : 1100));
   const moonSprite = new Sprite(new SpriteMaterial({ map: spriteTexture(images.get('environment/moon')), color: 0xb9c3d8, fog: false, depthWrite: false, transparent: true }));
   moonSprite.position.copy(center).addScaledVector(moonDir, 220);
-  moonSprite.scale.set(15, 15, 1);
+  const MOON = 15;
+  moonSprite.scale.set(MOON, MOON, 1);
   moonSprite.renderOrder = -1;
   scene.add(moonSprite);
   const glowTex = spriteTexture(images.get('particle/glow'));
@@ -153,6 +154,8 @@ export function nightAtmosphere(scene, { center, lite, heroPose, images, emitter
   return {
     variant: 'night',
     particleDim: 0.45,
+    // Where the intro starts (src/scene/camera.js).
+    moon: { position: moonSprite.position, scale: MOON },
     // Per game tick: torches smoke and flicker, lava spits now and then.
     tick() {
       for (const [x, y, z, , kind] of others) {

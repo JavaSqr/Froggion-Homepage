@@ -1,6 +1,6 @@
 // Creeper model (head 8³, body 8×12×4, four 4×6×4 legs), texture 64×32, quadruped leg swing.
 import { MeshLambertMaterial, FrontSide } from 'three';
-import { boxGeometry, Part, entityRig, DEG } from './model.js';
+import { boxGeometry, Part, entityRig, skinnedModel, DEG } from './model.js';
 
 export class Creeper {
   constructor({ texture }) {
@@ -23,13 +23,16 @@ export class Creeper {
       leg3: [[2, 18, -4], 0, 16, [-2, 0, -2], [4, 6, 4]],
     };
     this.parts = {};
-    this.pickables = [];
+    const pieces = [];
     for (const [name, [pivot, u, v, o, s]] of Object.entries(defs)) {
       const p = new Part(name, ...pivot);
-      this.pickables.push(p.add(boxGeometry(64, 32, u, v, o[0], o[1], o[2], s[0], s[1], s[2]), this.material));
+      pieces.push([p, boxGeometry(64, 32, u, v, o[0], o[1], o[2], s[0], s[1], s[2])]);
       this.modelRoot.add(p.group);
       this.parts[name] = p;
     }
+    this.body = skinnedModel(pieces, this.material);
+    this.modelRoot.add(this.body);
+    this.pickables = [this.body];
   }
 
   setupAnim({ limbSwing = 0, limbSwingAmount = 0, netHeadYaw = 0, headPitch = 0, hurt = 0 }) {

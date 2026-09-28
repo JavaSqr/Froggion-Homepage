@@ -5,12 +5,15 @@ import { initFlyover } from './ui/flyover.js';
 import { initSmoothWheel } from './ui/smooth-wheel.js';
 import { eco, initEcoToggle } from './ui/eco.js';
 import { initSectionSnap } from './ui/section-snap.js';
+import { createIntro } from './ui/intro.js';
+import { loadSceneData } from './scene/assets.js';
 
 const layer = document.querySelector('[data-scene]');
 const hero = document.querySelector('.hero');
 const jobs = document.querySelector('.jobs');
 const botsData = JSON.parse(document.getElementById('bots-data')?.textContent || '[]');
 initEcoToggle();
+const intro = createIntro();
 const cards = createCards({ bots: botsData, root: hero });
 const params = new URLSearchParams(location.search);
 const body = document.body;
@@ -21,14 +24,8 @@ const motionAlways = document.documentElement.dataset.motion === 'always';
 const prefersReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const still = params.has('still') || (!motionAlways && prefersReduced && !params.has('motion'));
 
-function webglAvailable() {
-  try {
-    const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') || c.getContext('webgl'));
-  } catch {
-    return false;
-  }
-}
+// A test context would cost a tenth of a second; a browser that cannot make one fails in startScene instead.
+const webglAvailable = () => 'WebGLRenderingContext' in window;
 
 const lite = matchMedia('(max-width: 760px), (pointer: coarse)').matches || params.has('lite');
 if (params.has('poster')) body.classList.add('poster-mode');
@@ -47,30 +44,35 @@ if (layer && variant !== body.dataset.variant) {
 
 // «scene-flight»: the bot blocks stand over the live island. Without it they are a plain list with stills.
 let started = false;
+let downloads = null;
 async function boot() {
   if (started) return;
   started = true;
   body.classList.remove('scene-paused');
   body.classList.add('scene-flight');
   try {
+    downloads ??= loadSceneData({ night: variant === 'night' });
     const { startScene } = await import('./scene/index.js');
-    const scene = await startScene({ layer, bots: botsData, lite, variant, debug: params.has('debug'), eco: eco.on });
+    const scene = await startScene({
+      layer, bots: botsData, lite, variant, debug: params.has('debug'), eco: eco.on, downloads, intro: intro.options(layer),
+    });
     eco.onChange((on) => scene.setEco(on));
     cards.attachScene(scene);
     if (!body.classList.contains('poster-mode')) initFlyover({ scene, section: jobs });
     body.classList.add('scene-live');
+    intro.play(scene);
     window.__froggion = { scene, cards };
   } catch (e) {
     // The poster stays; the page works without the 3D scene.
     body.classList.remove('scene-flight');
+    intro.show();
     console.error('[froggion] 3D scene failed to start:', e);
   }
 }
 
+// three.js comes after the first paint; the scene data and textures, which do not need it, right away.
 function afterFirstPaint(fn) {
-  const run = () => requestAnimationFrame(() => setTimeout(fn, 0));
-  if (document.readyState === 'complete') run();
-  else addEventListener('load', run, { once: true });
+  requestAnimationFrame(() => setTimeout(fn, 0));
 }
 
 // Without WebGL or without motion the poster stays and the bot cards open from the list.
@@ -78,13 +80,16 @@ function afterFirstPaint(fn) {
 if (!layer) {
   // no scene on this page
 } else if (!webglAvailable()) {
+  intro.show();
   console.info('[froggion] 3D scene is off: WebGL is not available (is hardware acceleration disabled?)');
 } else if (still) {
+  intro.show();
   console.info('[froggion] 3D scene is off: reduced motion (the system setting with motion "system" in site.config.json, or ?still). Use the button or ?motion.');
   body.classList.add('scene-paused');
   document.querySelector('.scene-play')?.addEventListener('click', boot);
 } else {
   body.classList.add('scene-flight');
+  downloads = loadSceneData({ night: variant === 'night' });
   afterFirstPaint(boot);
 }
 

@@ -50,7 +50,8 @@ export class NameTags {
       const dpr = window.devicePixelRatio || 1;
       const x = Math.round((((p.x + 1) / 2) * width - it.w / 2) * dpr) / dpr;
       const y = Math.round((((1 - p.y) / 2) * height - it.h) * dpr) / dpr;
-      it.el.style.transform = `translate(${x}px, ${y}px)`;
+      // Style is written only when the tag moved: most frames it stays on the same device pixel.
+      if (!it.rect || it.rect.x !== x || it.rect.y !== y) it.el.style.transform = `translate(${x}px, ${y}px)`;
       it.rect = { x, y, w: it.w, h: it.h };
       if (checkOcclusion) {
         const behind = this.occludes(camera.position, tag.position);

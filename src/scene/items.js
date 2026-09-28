@@ -17,7 +17,8 @@ export const GROUND = { rotation: [0, 0, 0], translation: [0, 2, 0], scale: 0.5 
 function pixels(image) {
   const c = document.createElement('canvas');
   c.width = image.width; c.height = image.height;
-  const ctx = c.getContext('2d');
+  // A canvas kept in memory: reading pixels back from the GPU is slow.
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(image, 0, 0);
   return ctx.getImageData(0, 0, image.width, image.height).data;
 }
