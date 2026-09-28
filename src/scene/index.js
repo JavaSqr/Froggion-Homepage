@@ -307,7 +307,8 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     playIntro(seconds) { rig.playIntro(eco ? 0 : seconds); invalidate(); },
     // Scroll flight: the stops in order, then progress along them (-1 = first screen).
     setPath(nicks) { rig.setPath(nicks); },
-    fly(s, instant = false) { rig.fly(s, instant); invalidate(); },
+    // instant: the frame is drawn at once (the island may be about to show).
+    fly(s, instant = false) { rig.fly(s, instant); if (instant) still(); else invalidate(); },
     jump(index) { if (eco) rig.fly(index, true); else rig.jump(index); invalidate(); },
     // Eco mode: the bots, particles and camera stand still; a frame is drawn only when the view changes.
     setEco(on) {

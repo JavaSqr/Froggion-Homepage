@@ -55,7 +55,11 @@ export function initFlyover({ scene, section }) {
     update();
   });
   const remeasure = () => { measure(); update(); };
-  addEventListener('scroll', () => update(), { passive: true });
+  // Until the visitor does anything, scrolling is the browser restoring the place after a reload:
+  // the camera goes straight there instead of flying over from the first screen.
+  let restoring = true;
+  for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) addEventListener(type, () => { restoring = false; }, { passive: true, once: true });
+  addEventListener('scroll', () => update(restoring), { passive: true });
   addEventListener('resize', remeasure);
   const ro = new ResizeObserver(remeasure);
   ro.observe(section);

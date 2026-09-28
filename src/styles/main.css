@@ -172,6 +172,11 @@ html.eco .eco-toggle { color: var(--green); background: rgba(31, 58, 36, 0.6); b
 .scene-layer canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; }
 .scene-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .scene-layer.is-live .scene-poster { opacity: 0; transition: opacity 0.6s ease; }
+/* The live scene shows once its first frame is drawn where the visitor is (src/main.js adds is-shown).
+   While it is expected (html.scene-on, set in <head>), the sky waits for it without the poster and the stills. */
+.scene-layer canvas, .name-tags { transition: opacity 0.4s ease; }
+.scene-layer:not(.is-shown) canvas, .scene-layer:not(.is-shown) .name-tags { opacity: 0; }
+html.scene-on .scene-poster, html.scene-on .job__still { display: none; }
 /* Name tags over the bots (src/scene/nametags.js), like the game's white text on a dim plate. */
 .name-tags { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .name-tags span {
@@ -204,7 +209,7 @@ body.scene-live .scene-hint { opacity: 0.85; }
   .scene-hint { display: none; }
 }
 
-/* Keyboard list of bots: visible on focus, or always when there is no live scene. */
+/* Keyboard list of bots: visible on focus, or always when there is no live scene (then the cards open from it). */
 .bot-list { position: absolute; z-index: 3; left: var(--gutter); top: calc(var(--header-h) + 8px); }
 .bot-list ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .bot-list__btn {
@@ -212,7 +217,7 @@ body.scene-live .scene-hint { opacity: 0.85; }
   padding: 10px 12px; cursor: pointer;
 }
 .bot-list__btn:hover, .bot-list__btn[aria-expanded='true'] { border-color: var(--green); }
-body.scene-live .bot-list:not(:focus-within) {
+html.scene-on .bot-list:not(:focus-within), body.scene-live .bot-list:not(:focus-within) {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 
@@ -240,21 +245,22 @@ body.scene-live .bot-list:not(:focus-within) {
 .site-header.is-solid { background: rgba(11, 15, 12, 0.94); box-shadow: 0 1px 0 var(--border); backdrop-filter: blur(8px); }
 
 /* Section 3. By default a plain list with a still of each station (no JS, no WebGL, reduced motion).
-   With the live scene («scene-flight») tall blocks stand over the island and the camera flies from bot to bot. */
+   With the live scene («scene-flight», or «scene-on» on <html> from the first paint) tall blocks stand over the island
+   and the camera flies from bot to bot. */
 .jobs { position: relative; z-index: 2; padding: 0 var(--gutter) 64px; background: var(--bg); }
 .jobs__intro { padding: clamp(72px, 10vw, 128px) 0 12px; }
 .job { display: flex; align-items: center; gap: 40px; padding: 28px 0; scroll-margin-top: var(--header-h); }
 .flight-only { display: none; }
-body.scene-flight .flight-only { display: inline; }
-body.scene-flight .jobs { background: none; padding-bottom: 0; }
-body.scene-flight .jobs__intro { padding: 22vh 0 6vh; }
-body.scene-flight .jobs__intro > * { max-width: 520px; }
-body.scene-flight .jobs__intro h2, body.scene-flight .jobs__intro p {
+:is(.scene-on, .scene-flight) .flight-only { display: inline; }
+:is(.scene-on, .scene-flight) .jobs { background: none; padding-bottom: 0; }
+:is(.scene-on, .scene-flight) .jobs__intro { padding: 22vh 0 6vh; }
+:is(.scene-on, .scene-flight) .jobs__intro > * { max-width: 520px; }
+:is(.scene-on, .scene-flight) .jobs__intro h2, :is(.scene-on, .scene-flight) .jobs__intro p {
   width: fit-content; padding: 10px 16px; margin: 0; background: rgba(11, 15, 12, 0.8); backdrop-filter: blur(6px);
 }
-body.scene-flight .jobs__intro p { padding-top: 4px; }
+:is(.scene-on, .scene-flight) .jobs__intro p { padding-top: 4px; }
 /* Each bot gets a screen and a half of scrolling: the camera flies over the island at an easy pace. */
-body.scene-flight .job { min-height: 150vh; padding: 0; scroll-margin-top: 0; }
+:is(.scene-on, .scene-flight) .job { min-height: 150vh; padding: 0; scroll-margin-top: 0; }
 .job__card {
   position: relative; max-width: 440px; padding: 28px 28px 24px;
   background: rgba(16, 22, 17, 0.86); backdrop-filter: blur(6px);
@@ -267,12 +273,12 @@ body.scene-live .job:not(.is-active) .job__card { opacity: 0.25; transform: tran
 @media (max-width: 560px) { .job h3 { font-size: 24px; } }
 .job p { color: #cfd9cc; margin: 12px 0 0; }
 .job__still { display: block; flex: 1 1 auto; min-width: 0; width: min(720px, 52vw); height: auto; background: var(--panel); }
-body.scene-flight .job__still { display: none; }
+:is(.scene-on, .scene-flight) .job__still { display: none; }
 @media (max-width: 760px) {
   .job { flex-direction: column-reverse; align-items: stretch; gap: 0; }
   .job__card { max-width: none; }
   .job__still { width: 100%; }
-  body.scene-flight .job { flex-direction: row; align-items: flex-end; padding-bottom: 10vh; }
+  :is(.scene-on, .scene-flight) .job { flex-direction: row; align-items: flex-end; padding-bottom: 10vh; }
 }
 
 /* Regular sections cover the scene layer. */
@@ -476,6 +482,7 @@ html.eco *, html.eco *::before, html.eco *::after { transition: none !important;
 .poster-mode .site-header, .poster-mode .hero__copy, .poster-mode .scene-hint, .poster-mode .bot-list, .poster-mode .scene-play,
 .poster-mode .scene-poster, .poster-mode .hero::before, .poster-mode .jobs, .poster-mode .section,
 .poster-mode .final-cta, .poster-mode .site-footer { display: none !important; }
+.poster-mode .scene-layer canvas, .poster-mode .name-tags { transition: none; }
 
 /* Night variant of the scene: a deep blue sky behind the island. */
 body[data-variant='night'] .scene-layer { background: radial-gradient(ellipse at 64% 36%, #121c30 0%, #0a0f1a 45%, #06080d 78%); }
@@ -496,10 +503,8 @@ html.intro:not(.intro-zoom) .scene-moon { display: block; }
   mask: url('/textures/particle/glow.png') center / 100% 100% no-repeat, url('/textures/particle/glow.png') center / 100% 100% no-repeat;
   mask-composite: intersect;
 }
-html.intro .bot-list { visibility: hidden; }
 html.intro .scene-layer canvas { opacity: 0; }
 html.intro.intro-live .scene-layer canvas { opacity: 1; transition: opacity 0.3s ease; }
-html.intro .scene-poster, html.intro-played .scene-layer.is-live .scene-poster, html.intro .job__still { display: none; }
 html.intro .site-header, html.intro .hero__copy, html.intro .scene-hint, html.intro .hero::before { opacity: 0; visibility: hidden; }
 html.intro-played .hero__copy, html.intro-played .hero::before { transition: opacity 1s ease, visibility 0s; }
 html.intro-played .site-header { transition: opacity 1s ease 0.35s, visibility 0s; }
