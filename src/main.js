@@ -125,7 +125,8 @@ if (header && menuButton) {
 
 initCalculator(document.querySelector('[data-calc]'));
 initChats(document.querySelector('[data-chats]'), { reducedMotion: still });
-if (!still) initSmoothWheel({ enabled: () => !eco.on });
+// Eco mode stops the island, not the page: smooth scrolling and fades stay.
+if (!still) initSmoothWheel();
 if (!still) {
   initSectionSnap({
     sections: ['#features', '#notifications', '#panel', '#pricing', '#partners', '#faq'].map((id) => document.querySelector(id)),

@@ -22,7 +22,7 @@ function scrollableParent(el) {
   return null;
 }
 
-// enabled(): checked on every notch (eco mode turns the glide off).
+// enabled(): checked on every notch.
 export function initSmoothWheel({ enabled = () => true } = {}) {
   let target = 0, current = 0, last = 0, active = false;
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
