@@ -59,14 +59,19 @@ export function renderExtras(root, { base = '/' } = {}) {
 
 // Before the first paint: eco mode (src/ui/eco.js), so nothing starts moving and then stops; and whether the
 // home page opens with the intro (src/ui/intro.js): a close-up of the moon while the scene loads, then
-// a zoom out to the island. Not in eco mode, without motion, with an anchor in the address or for tools.
+// a zoom out to the island. Only on the first visit in INTRO_AFTER_HOURS (the time of the last page view is kept
+// in localStorage, key froggion-visit), never on a reload or back/forward, where the browser restores the scroll.
+// Not in eco mode, without motion, with an anchor in the address or for tools; ?intro plays it anyway.
 // Without the intro the poster stands in for the scene, preloaded here.
+const INTRO_AFTER_HOURS = 12;
 function headScript({ config, base }, home) {
-  const eco = "var d=document.documentElement,e=false;try{e=localStorage.getItem('froggion-eco')==='1'}catch(x){}if(e)d.classList.add('eco');";
+  const eco = "var d=document.documentElement,e=false,g=1/0;try{var s=localStorage,n=Date.now();e=s.getItem('froggion-eco')==='1';g=n-(+s.getItem('froggion-visit')||0);s.setItem('froggion-visit',n)}catch(x){}if(e)d.classList.add('eco');";
   if (!home) return `(function(){${eco}})()`;
   const poster = (portrait) => base + posterName(config, portrait).slice(1);
   return `(function(){${eco}
-if('intro' in d.dataset&&!e&&!location.hash&&!/[?&](still|poster|day|nointro)\\b/.test(location.search)&&(d.dataset.motion==='always'||!matchMedia('(prefers-reduced-motion: reduce)').matches)){d.classList.add('intro');return}
+var q=location.search,v=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0]||{}).type,
+f=/[?&]intro\\b/.test(q)||(g>${INTRO_AFTER_HOURS * 3600e3}&&v!=='reload'&&v!=='back_forward');
+if(f&&'intro' in d.dataset&&!e&&!location.hash&&!/[?&](still|poster|day|nointro)\\b/.test(q)&&(d.dataset.motion==='always'||!matchMedia('(prefers-reduced-motion: reduce)').matches)){d.classList.add('intro');return}
 [['${poster(false)}','(min-aspect-ratio: 1/1)'],['${poster(true)}','(max-aspect-ratio: 1/1)']].forEach(function(p){var l=document.createElement('link');l.rel='preload';l.as='image';l.href=p[0];l.media=p[1];l.fetchPriority='high';document.head.appendChild(l)})})()`;
 }
 
