@@ -84,7 +84,10 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
 
   const renderer = new WebGLRenderer({ antialias: !lite, alpha: true, powerPreference: lite ? 'low-power' : 'high-performance' });
   renderer.outputColorSpace = LinearSRGBColorSpace;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lite ? 1.5 : 2));
+  // Phones open at 75% (the viewport's initial scale): the canvas is larger in CSS pixels, not on screen,
+  // so its resolution is scaled down to the same pixels per screen dot.
+  const pageScale = Math.min(1, window.visualViewport?.scale || 1);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lite ? 1.5 : 2) * (lite ? pageScale : 1));
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
@@ -144,7 +147,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
 
   // Loop state (the loop itself is below).
   const listeners = new Set();
-  let running = false, frozen = false, last = 0, raf = 0, pAcc = 0, clock = 0, onScreen = true, lastRender = 0, pending = 0;
+  let running = false, frozen = false, last = 0, raf = 0, pAcc = 0, clock = 0, onScreen = true, pending = 0;
 
   let width = 0, height = 0;
   const resize = () => {
@@ -207,14 +210,20 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   }
 
   // Main loop, paused off screen, in hidden tabs and in eco mode. The island moves slowly, so it is drawn
-  // 30 times a second; while the camera flies, 60 (never more, even on 120-144 Hz screens).
-  const FPS = { idle: 30, moving: lite ? 30 : 60 };
+  // 30 times a second; while the camera flies, 60 (never more, even on 120-144 Hz screens), phones too:
+  // a camera at 30 next to a page scrolling at the screen's rate looks jerky.
+  const FPS = { idle: 30, moving: 60 };
+  // The screen's refresh interval in ms, measured from the animation frames.
+  let refresh = 1000 / 60, prevTick = 0, ticks = 0;
   function frame(now) {
     raf = requestAnimationFrame(frame);
-    const interval = 1000 / (rig.moving ? FPS.moving : FPS.idle);
-    if (now - lastRender < interval - 2) return;
-    // Kept on the frame grid, so 144 Hz averages out to 60 instead of dropping to 48; after a pause, from now.
-    lastRender = now - lastRender > interval * 2 ? now : lastRender + interval;
+    const gap = now - prevTick;
+    prevTick = now;
+    if (gap > 4 && gap < 50) refresh += (gap - refresh) * 0.05;
+    // Every n-th refresh of the screen, n nearest to the target rate: an even pace (45 on 90 Hz, 60 on 120 Hz,
+    // 72 on 144 Hz) rather than frames one and two refreshes apart, which made the camera stutter.
+    const n = Math.max(1, Math.round(1000 / (rig.moving ? FPS.moving : FPS.idle) / refresh + 0.05));
+    if (++ticks % n !== 0) return;
     // rAF time can be a little older than the moment the loop was started.
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
