@@ -81,7 +81,10 @@ export function createIslandView({ island, extraStates, dynamic, extraStatic = [
   const dynKeys = new Set(dynamic.map(([x, y, z]) => grid.index(x, y, z)));
   for (const [x, y, z, s] of dynamic) overrides.set(grid.index(x, y, z), indexOf.get(s));
   for (const [x, y, z, s] of extraStatic) overrides.set(grid.index(x, y, z), indexOf.get(s));
-  const light = lightmap ? computeLight(grid, palette.map((s) => modelFor(s))) : null;
+  // Light is baked once: the cells the bots change count as air, so a block mined later (cobblestone by the lava)
+  // does not leave a pocket of darkness on the faces around it.
+  const lightGrid = { size: grid.size, get: (x, y, z) => (dynKeys.has(grid.index(x, y, z)) ? 0 : grid.get(x, y, z)) };
+  const light = lightmap ? computeLight(lightGrid, palette.map((s) => modelFor(s))) : null;
   const mesher = createMesher({ palette, uvOf: atlas.uvOf, fade, lavaFade, depthFade, lighting: light ? { light, map: lightmap } : null });
 
   const group = new Group();

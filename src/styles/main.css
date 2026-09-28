@@ -129,9 +129,11 @@ html.eco .eco-toggle { color: var(--green); background: rgba(31, 58, 36, 0.6); b
   .site-header.is-open .menu-btn span { background: transparent; }
   .site-header.is-open .menu-btn span::before { top: 0; transform: rotate(45deg); }
   .site-header.is-open .menu-btn span::after { top: 0; transform: rotate(-45deg); }
+  /* The open menu covers the whole page below the bar, so nothing shows through it. */
   .site-header.is-open .site-nav {
     display: block; position: absolute; left: 0; right: 0; top: var(--header-h);
-    background: rgba(11, 15, 12, 0.97); box-shadow: 0 1px 0 var(--border); padding: 8px var(--gutter) 16px;
+    height: calc(100vh - var(--header-h)); height: calc(100dvh - var(--header-h)); overflow-y: auto;
+    background: var(--bg); box-shadow: 0 1px 0 var(--border); padding: 8px var(--gutter) 16px;
   }
   .site-header.is-open .site-nav ul { flex-direction: column; }
   .site-header.is-open .site-nav a { padding: 12px 0; font-size: 17px; }
@@ -189,7 +191,7 @@ html.scene-on .scene-poster, html.scene-on .job__still { display: none; }
 .hero__copy > * { pointer-events: auto; }
 .hero h1 { font-size: 48px; line-height: 1.17; text-shadow: 0 4px 0 rgba(0, 0, 0, 0.45); }
 @media (max-width: 1080px) { .hero h1 { font-size: 40px; } }
-@media (max-width: 560px) { .hero h1 { font-size: 32px; } }
+@media (max-width: 560px) { .hero h1 { font-size: 24px; } }
 .hero__subtitle { margin: 18px 0 0; font-size: clamp(16px, 1.5vw, 19px); color: #b9c6b6; max-width: 480px; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.8); }
 .hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .hero__note { margin: 14px 0 0; font: 16px/1.25 var(--pixel); color: var(--orange); }
@@ -198,15 +200,25 @@ html.scene-on .scene-poster, html.scene-on .job__still { display: none; }
   font: 16px/1 var(--pixel); color: var(--muted); pointer-events: none; opacity: 0; transition: opacity 0.4s;
 }
 body.scene-live .scene-hint { opacity: 0.85; }
+.scene-hint__touch { display: none; }
+@media (hover: none) {
+  .scene-hint__mouse { display: none; }
+  .scene-hint__touch { display: inline; }
+}
+/* Phones: the island takes the upper half (the camera frames it there, src/scene/camera.js), the copy is
+   compact at the bottom over a short fade, and the hint to tap a bot stands just above the headline. */
 @media (max-width: 760px) {
-  .hero { align-items: flex-end; padding-bottom: 32px; }
+  .hero { flex-direction: column; justify-content: flex-end; align-items: stretch; padding-bottom: 24px; }
   .hero::before {
-    content: ''; position: absolute; inset: auto 0 0 0; height: 70%; z-index: 1; pointer-events: none;
-    background: linear-gradient(rgba(11, 15, 12, 0), rgba(11, 15, 12, 0.92) 55%);
+    content: ''; position: absolute; inset: auto 0 0 0; height: 50%; z-index: 1; pointer-events: none;
+    background: linear-gradient(rgba(11, 15, 12, 0), rgba(11, 15, 12, 0.86) 38%, rgba(11, 15, 12, 0.96));
   }
-  .hero__subtitle { font-size: 16px; }
+  .hero__subtitle { margin-top: 12px; font-size: 15px; line-height: 1.5; }
+  .hero__actions { margin-top: 20px; gap: 8px; }
+  .hero__actions .btn { padding: 0 14px; }
+  .hero__note { margin-top: 12px; }
   .btn { flex: 1 1 auto; }
-  .scene-hint { display: none; }
+  .scene-hint { position: relative; order: -1; right: auto; bottom: auto; margin: 0 0 14px; line-height: 1.25; }
 }
 
 /* Keyboard list of bots: visible on focus, or always when there is no live scene (then the cards open from it). */
