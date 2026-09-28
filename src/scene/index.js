@@ -88,6 +88,8 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
+  // Phones: the shadows follow the bots every other frame, which spares the GPU a whole pass.
+  renderer.shadowMap.autoUpdate = !lite;
   // Error checks make the browser wait for each shader to finish compiling.
   renderer.debug.checkShaderErrors = debug;
   renderer.domElement.setAttribute('aria-hidden', 'true');
@@ -227,10 +229,12 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     rig.update(dt);
     atmosphere.update(camera, dt);
   }
+  let shadowFrame = 0;
   function draw(exact = false) {
     world.render(camera);
     particles.render(pAcc);
     view.update(clock);
+    if (lite) renderer.shadowMap.needsUpdate = exact || shadowFrame++ % 2 === 0;
     renderer.render(scene, camera);
     tags.update(camera, width, height, exact);
     for (const fn of listeners) fn();
@@ -290,6 +294,7 @@ export async function startScene({ layer, bots: meta, lite = false, debug = fals
     scene.add(extra);
     try { await renderer.compileAsync(scene, camera); } catch { /* compiled on the first frame then */ }
     // The shadow pass has shaders of its own.
+    renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, camera);
     scene.remove(extra);
     for (const o of outlines) o.visible = false;

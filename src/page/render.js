@@ -66,8 +66,11 @@ export function renderExtras(root, { base = '/' } = {}) {
 // and the sky waits for the scene; src/main.js takes the class away when the scene cannot run.
 // Otherwise the poster stands in for the scene, preloaded here.
 const INTRO_AFTER_HOURS = 12;
+// Phones (the shorter side of the screen under 600px) open the site at 75%, like the browser's zoom:
+// more of the island and the page fits, the layout gets 4/3 of the width.
 function headScript({ config, base }, home) {
-  const eco = "var d=document.documentElement,e=false,g=1/0;try{var s=localStorage,n=Date.now();e=s.getItem('froggion-eco')==='1';g=n-(+s.getItem('froggion-visit')||0);s.setItem('froggion-visit',n)}catch(x){}if(e)d.classList.add('eco');";
+  const eco = "var d=document.documentElement,e=false,g=1/0;try{var s=localStorage,n=Date.now();e=s.getItem('froggion-eco')==='1';g=n-(+s.getItem('froggion-visit')||0);s.setItem('froggion-visit',n)}catch(x){}if(e)d.classList.add('eco');"
+    + "if(Math.min(screen.width,screen.height)<600){var w=document.querySelector('meta[name=viewport]');if(w)w.content='width=device-width, initial-scale=0.75, viewport-fit=cover'}";
   if (!home) return `(function(){${eco}})()`;
   const poster = (portrait) => base + posterName(config, portrait).slice(1);
   return `(function(){${eco}
@@ -93,6 +96,7 @@ function head({ t, lang, config, base }, { title = t.meta.title, description = t
   return `<head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark">
     <title>${esc(title)}</title>
     <meta name="description" content="${esc(description)}">${index ? '' : `
     <meta name="robots" content="noindex">`}

@@ -121,7 +121,7 @@ html.eco .eco-toggle { color: var(--green); background: rgba(31, 58, 36, 0.6); b
     display: grid; place-items: center; order: 3; width: 44px; height: 44px; margin-right: -8px;
     background: none; border: 0; color: var(--text); cursor: pointer;
   }
-  .menu-btn span, .menu-btn span::before, .menu-btn span::after { display: block; width: 22px; height: 3px; background: currentColor; }
+  .menu-btn span, .menu-btn span::before, .menu-btn span::after { display: block; width: 22px; height: 3px; background: #fff; }
   .menu-btn span { position: relative; }
   .menu-btn span::before, .menu-btn span::after { content: ''; position: absolute; left: 0; }
   .menu-btn span::before { top: -7px; }
@@ -290,7 +290,8 @@ body.scene-live .job:not(.is-active) .job__card { opacity: 0.25; transform: tran
   .job { flex-direction: column-reverse; align-items: stretch; gap: 0; }
   .job__card { max-width: none; }
   .job__still { width: 100%; }
-  :is(.scene-on, .scene-flight) .job { flex-direction: row; align-items: flex-end; padding-bottom: 10vh; }
+  /* A fifth less scrolling between the bots than on a computer. */
+  :is(.scene-on, .scene-flight) .job { min-height: 125vh; flex-direction: row; align-items: flex-end; padding-bottom: 10vh; }
 }
 
 /* Regular sections cover the scene layer. */
@@ -486,10 +487,6 @@ body.scene-live .job:not(.is-active) .job__card { opacity: 0.25; transform: tran
 @media (prefers-reduced-motion: reduce) {
   html[data-motion='system'] .job__card, html[data-motion='system'] .chats .msg { transition: none; }
 }
-/* Eco mode (the switch in the header): nothing on the page glides or fades. */
-html.eco { scroll-behavior: auto; }
-html.eco *, html.eco *::before, html.eco *::after { transition: none !important; animation: none !important; }
-
 /* Poster rendering (tools/render-poster.js): only the scene. */
 .poster-mode .site-header, .poster-mode .hero__copy, .poster-mode .scene-hint, .poster-mode .bot-list, .poster-mode .scene-play,
 .poster-mode .scene-poster, .poster-mode .hero::before, .poster-mode .jobs, .poster-mode .section,
@@ -532,3 +529,14 @@ html.intro-played .site-header { transition: opacity 1s ease 0.35s, visibility 0
 body.scene-paused .scene-play { display: block; }
 body.scene-paused .scene-hint { display: none; }
 @media (max-width: 760px) { .scene-play { right: auto; left: var(--gutter); bottom: auto; top: calc(var(--header-h) + 64px); } }
+
+/* Phones: no blur behind the panels over the live island. The canvas changes every frame and the blur under
+   the header, cards and buttons was redrawn with it, so scrolling stuttered (in eco mode it did not). */
+@media (hover: none), (max-width: 760px) {
+  .btn--ghost, .site-header.is-solid, .job__card,
+  :is(.scene-on, .scene-flight) .jobs__intro h2, :is(.scene-on, .scene-flight) .jobs__intro p { backdrop-filter: none; }
+  .btn--ghost { background: rgba(20, 27, 21, 0.9); }
+  .site-header.is-solid { background: rgba(11, 15, 12, 0.97); }
+  .job__card { background: rgba(16, 22, 17, 0.94); }
+  :is(.scene-on, .scene-flight) .jobs__intro h2, :is(.scene-on, .scene-flight) .jobs__intro p { background: rgba(11, 15, 12, 0.9); }
+}
