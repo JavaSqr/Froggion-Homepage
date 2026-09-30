@@ -4,7 +4,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const icon = path.join(ROOT, 'source/brand/froggion-icon-white-noeyes.png');
+const icon = path.join(ROOT, 'source/brand/froggion-head-white.png');
 const out = path.join(ROOT, 'public');
 fs.mkdirSync(path.join(out, 'brand'), { recursive: true });
 
