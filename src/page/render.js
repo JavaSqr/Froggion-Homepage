@@ -131,7 +131,7 @@ function header(ctx, prefix = '') {
     : `<a class="lang-switch__item" href="${within(ctx.base, l.path)}" hreflang="${l.hreflang}" lang="${l.hreflang}">${l.code.toUpperCase()}</a>`)).join('');
   return `<header class="site-header">
       <a class="logo" href="${ctx.home}" aria-label="Froggion">
-        <img src="/brand/logo.png" width="39" height="40" alt="">
+        <img src="/brand/logo.png" width="41" height="40" alt="">
         <span>Froggion</span>
       </a>
       <button type="button" class="menu-btn" aria-expanded="false" aria-controls="site-nav" aria-label="${esc(t.nav.menu)}"><span aria-hidden="true"></span></button>
@@ -466,7 +466,7 @@ function footer(ctx) {
   return `<footer class="site-footer">
       <div class="site-footer__grid">
         <div>
-          <a class="logo" href="${ctx.home}" aria-label="Froggion"><img src="/brand/logo.png" width="39" height="40" alt=""><span>Froggion</span></a>
+          <a class="logo" href="${ctx.home}" aria-label="Froggion"><img src="/brand/logo.png" width="41" height="40" alt=""><span>Froggion</span></a>
           <p class="site-footer__langs">${langs}</p>
         </div>
         <div>

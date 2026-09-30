@@ -37,7 +37,7 @@ function overlayHtml(lang) {
   return `<div style="position:fixed;inset:0;z-index:50;pointer-events:none;
       background:linear-gradient(90deg,rgba(11,15,12,.92) 0%,rgba(11,15,12,.72) 36%,rgba(11,15,12,0) 62%)">
     <div style="position:absolute;left:64px;top:64px;display:flex;align-items:center;gap:16px">
-      <img src="/brand/logo.png" width="68" height="70" alt="">
+      <img src="/brand/logo.png" width="71" height="70" alt="">
       <span style="font:700 46px/1 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#e9f0e6">Froggion</span>
     </div>
     <h1 style="position:absolute;left:64px;bottom:120px;width:600px;margin:0;font:48px/1.17 'Froggion Pixel',monospace;color:#e9f0e6;text-shadow:0 4px 0 rgba(0,0,0,.45)">${esc(t.hero.title)}</h1>
